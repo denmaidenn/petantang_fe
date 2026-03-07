@@ -9,14 +9,13 @@ import {
   Clock,
   ArrowRight,
   Users,
-  UserCheck,
   FileText,
   AlertCircle,
   Info,
   ShieldCheck,
   ChevronRight,
   ScanFace,
-  BellRing,
+  CheckCircle2,
 } from "lucide-react";
 
 // Animation variants
@@ -54,13 +53,12 @@ export default function Labvokshome() {
     { name: "Lab Robotik", prodi: "Sistem Informasi", gedung: "Gedung CB", status: "tersedia", time: "11:00 - 13:00" },
   ];
 
+  // UPDATE: ALUR 4 TAHAP
   const steps = [
-    { title: "Verifikasi Wajah", desc: "Lakukan pemindaian wajah biometrik.", icon: <ScanFace className="w-5 h-5" /> },
-    { title: "Scan KTM Digital", desc: "Tempelkan QR Code KTM Digital Anda.", icon: <QrCode className="w-5 h-5" /> },
-    { title: "Persetujuan", desc: "Setujui pakta integritas penggunaan.", icon: <FileText className="w-5 h-5" /> },
-    { title: "Pilih Sesi", desc: "Pilih Laboratorium dan Jam sesi.", icon: <Clock className="w-5 h-5" /> },
-    { title: "Validasi Admin", desc: "Dikonfirmasi otomatis oleh Laboran.", icon: <UserCheck className="w-5 h-5" /> },
-    { title: "Akses Berhasil", desc: "Pintu akan otomatis dapat dibuka.", icon: <BellRing className="w-5 h-5" /> },
+    { title: "Scan KTM Digital", desc: "Pindai QR Code KTM Digital Anda.", icon: <QrCode className="w-5 h-5" /> },
+    { title: "Verifikasi Wajah", desc: "Validasi identitas melalui biometrik wajah.", icon: <ScanFace className="w-5 h-5" /> },
+    { title: "Syarat & Ketentuan", desc: "Persetujuan pakta integritas penggunaan lab.", icon: <FileText className="w-5 h-5" /> },
+    { title: "Akses Berhasil", desc: "Selesai! Praktikum dapat dimulai.", icon: <CheckCircle2 className="w-5 h-5" /> },
   ];
 
   const [activeStep, setActiveStep] = useState(0);
@@ -92,7 +90,6 @@ export default function Labvokshome() {
           animate="visible"
           variants={containerVariants}
         >
-          {/* Badge Label */}
           <motion.div variants={itemVariants} className="inline-flex items-center gap-2 bg-white border border-slate-200 px-5 py-2 rounded-full mb-6 shadow-sm">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#263C92] opacity-75"></span>
@@ -103,58 +100,29 @@ export default function Labvokshome() {
             </span>
           </motion.div>
 
-          {/* Main Title */}
           <motion.h1 variants={itemVariants} className="text-4xl md:text-5xl font-bold text-[#263C92] leading-tight mb-5 tracking-tight">
             Monitoring Lab <br />
             <span className="text-[#E40082] font-medium">Real-Time SV IPB</span>
           </motion.h1>
 
-          {/* Description */}
           <motion.p variants={itemVariants} className="text-slate-500 max-w-xl mx-auto text-[15px] md:text-[16px] font-normal leading-relaxed mb-10">
             Pantau penggunaan ruangan praktikum secara otomatis berdasarkan jadwal berjalan hari ini untuk mendukung efisiensi kegiatan belajar mengajar.
           </motion.p>
-
-          {/* Action Buttons with Animations */}
-          <motion.div variants={itemVariants} className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link 
-              href="/labvoks/scan" 
-              className="group flex items-center justify-center gap-2 px-8 py-3.5 bg-[#E40082] text-white rounded-xl font-bold text-sm shadow-lg shadow-pink-100 hover:bg-[#c40070] hover:-translate-y-1 transition-all active:scale-95"
-            >
-              <QrCode className="w-4 h-4 group-hover:rotate-12 transition-transform duration-300" />
-              Scan KTM Digital
-            </Link>
-            
-            <Link 
-              href="/labvoks/jadwal" 
-              className="group flex items-center justify-center gap-2 px-8 py-3.5 bg-white text-[#263C92] border border-slate-200 rounded-xl font-bold text-sm shadow-sm hover:shadow-md hover:border-[#263C92]/30 hover:-translate-y-1 transition-all active:scale-95"
-            >
-              <Calendar className="w-4 h-4 text-slate-400 group-hover:text-[#263C92] group-hover:rotate-6 transition-all duration-300" />
-              Lihat Jadwal Lab
-            </Link>
-          </motion.div>
         </motion.div>
 
-        {/* DOUBLE WAVE COMPONENT (Matching Jadwal Style) */}
         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-[0] z-0">
           <svg 
             viewBox="0 0 1200 120" 
             preserveAspectRatio="none" 
             className="relative block w-[calc(100%+1.3px)] h-[80px] fill-white"
           >
-            {/* Wave 1 (Layer Belakang) */}
-            <path 
-              d="M0,120 C200,100 400,0 600,60 C800,120 1000,20 1200,120 L1200,120 L0,120 Z" 
-              opacity="0.3" 
-            />
-            {/* Wave 2 (Layer Utama) */}
-            <path 
-              d="M0,120 C150,110 350,30 600,80 C850,130 1050,40 1200,120 L1200,120 L0,120 Z" 
-            />
+            <path d="M0,120 C200,100 400,0 600,60 C800,120 1000,20 1200,120 L1200,120 L0,120 Z" opacity="0.3" />
+            <path d="M0,120 C150,110 350,30 600,80 C850,130 1050,40 1200,120 L1200,120 L0,120 Z" />
           </svg>
         </div>
       </section>
 
-      {/* ================= SECTION 2: STATUS LAB (BUTTON REMOVED) ================= */}
+      {/* ================= SECTION 2: STATUS LAB ================= */}
       <section className="relative w-full bg-white pt-16 pb-12 border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div 
@@ -220,7 +188,7 @@ export default function Labvokshome() {
         </div>
       </section>
 
-      {/* ================= SECTION 3: CARA KERJA (ALUR DIPERBAIKI) ================= */}
+      {/* ================= SECTION 3: CARA KERJA (ALUR DIPERBAIKI - 4 LANGKAH) ================= */}
       <section className="relative w-full py-20 px-6 overflow-hidden bg-[#F8FAFC]">
         <div className="absolute inset-0 z-0 opacity-[0.25] pointer-events-none" style={{ backgroundImage: `linear-gradient(#cbd5e1 0.5px, transparent 0.5px), linear-gradient(90deg, #cbd5e1 0.5px, transparent 0.5px)`, backgroundSize: "30px 30px" }} />
 
@@ -235,13 +203,13 @@ export default function Labvokshome() {
             </div>
             <h2 className="text-3xl font-bold text-[#263C92] tracking-tight mb-4">Alur Penggunaan Lab</h2>
             <p className="text-slate-500 max-w-2xl mx-auto text-sm font-medium leading-relaxed mb-16">
-              Ikuti tahapan berikut untuk mendapatkan akses masuk ke fasilitas laboratorium secara otomatis.
+              Ikuti 4 tahapan berikut untuk mendapatkan akses masuk ke fasilitas laboratorium secara otomatis.
             </p>
           </motion.div>
 
           <div className="relative">
             {/* Progress Bar Line */}
-            <div className="absolute top-10 left-[5%] right-[5%] h-[3px] bg-slate-200/50 rounded-full hidden md:block overflow-hidden">
+            <div className="absolute top-10 left-[10%] right-[10%] h-[3px] bg-slate-200/50 rounded-full hidden md:block overflow-hidden">
               <motion.div 
                 className="h-full bg-[#E40082]" 
                 animate={{ width: `${(activeStep / (steps.length - 1)) * 100}%` }}
@@ -249,14 +217,14 @@ export default function Labvokshome() {
               />
             </div>
 
-            {/* Grid 6 Steps */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 relative z-10">
+            {/* Grid 4 Steps */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10 max-w-5xl mx-auto">
               {steps.map((step, index) => {
                 const isActive = index === activeStep;
                 return (
                   <motion.div 
                     key={index} 
-                    className={`p-5 rounded-[2rem] transition-all duration-700 text-center border relative flex flex-col items-center ${isActive ? "bg-[#263C92] shadow-2xl scale-105 -translate-y-2 border-transparent text-white" : "bg-white/80 backdrop-blur-sm border-slate-100 shadow-sm"}`}
+                    className={`p-6 rounded-[2rem] transition-all duration-700 text-center border relative flex flex-col items-center ${isActive ? "bg-[#263C92] shadow-2xl scale-105 -translate-y-2 border-transparent text-white" : "bg-white/80 backdrop-blur-sm border-slate-100 shadow-sm"}`}
                   >
                     <div className={`w-12 h-12 mb-4 flex items-center justify-center rounded-2xl font-bold transition-all duration-500 ${isActive ? "bg-[#E40082] text-white rotate-12 shadow-lg shadow-pink-500/30" : "bg-slate-50 text-slate-400"}`}>
                       {isActive ? step.icon : index + 1}
@@ -273,9 +241,6 @@ export default function Labvokshome() {
 
       {/* ================= SECTION 4: KETENTUAN PENTING ================= */}
       <section className="relative w-full py-24 md:py-32 bg-gradient-to-tr from-[#263C92]/5 via-white to-[#E40082]/5 overflow-hidden font-sans antialiased">
-        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[500px] h-[500px] bg-[#263C92]/5 rounded-full blur-[120px] opacity-40" />
-        <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[500px] h-[500px] bg-[#E40082]/5 rounded-full blur-[120px] opacity-40" />
-
         <div className="max-w-6xl mx-auto px-6 relative z-10">
           <motion.div
             className="flex flex-col lg:flex-row items-start justify-between gap-16"
@@ -293,9 +258,6 @@ export default function Labvokshome() {
                 Ketentuan Penting <br />
                 <span className="text-[#E40082] font-semibold">Layanan LabVoks</span>
               </h2>
-              <p className="text-slate-500 text-base leading-relaxed font-medium mb-10 max-w-lg tracking-tight">
-                Demi kenyamanan bersama, pastikan Anda memahami regulasi digital di bawah ini sebelum menggunakan fasilitas laboratorium.
-              </p>
               <div className="relative p-6 rounded-[32px] bg-amber-50 border border-red-200 flex items-start gap-5 overflow-hidden group shadow-sm">
                 <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shrink-0 shadow-sm relative z-10 border border-red-100">
                   <AlertCircle className="w-7 h-7 text-red-600" />
@@ -312,7 +274,7 @@ export default function Labvokshome() {
             <div className="w-full lg:w-1/2 flex flex-col gap-5">
               {[
                 { title: "Window Waktu Presensi", desc: "Scan KTM digital hanya berlaku 15–30 menit sebelum sesi dimulai. Keterlambatan akan membatalkan sesi.", icon: <Clock className="w-6 h-6" />, bg: "bg-[#263C92]" },
-                { title: "Batas Reservasi Mandiri", desc: "Booking ruangan untuk riset atau tugas mandiri wajib diajukan H-1 untuk validasi admin.", icon: <Calendar className="w-6 h-6" />, bg: "bg-[#E40082]" },
+                // { title: "Batas Reservasi Mandiri", desc: "Booking ruangan untuk riset atau tugas mandiri wajib diajukan H-1 untuk validasi admin.", icon: <Calendar className="w-6 h-6" />, bg: "bg-[#E40082]" },
                 { title: "Komitmen Fasilitas", desc: "Setiap kerusakan sarana akibat kelalaian menjadi tanggung jawab penuh peminjam secara legal.", icon: <ShieldCheck className="w-6 h-6" />, bg: "bg-emerald-600" },
               ].map((card, idx) => (
                 <motion.div

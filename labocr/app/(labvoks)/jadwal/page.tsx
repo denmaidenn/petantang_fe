@@ -93,8 +93,8 @@ export default function MonitoringLabVokasi() {
         status: "digunakan",
         lab: "Lab Multimedia 1",
         gedung: "Gedung CA",
-        prodi: "Teknologi Digital",
-        peminjam: "Bpk. Heru Subakti",
+        prodi: "Teknologi Rekayasa Perangkat Lunak",
+        peminjam: "Raffa Danendra",
         durasi: 2,
       },
       "2-0": {
@@ -102,31 +102,31 @@ export default function MonitoringLabVokasi() {
         lab: "Lab Pemrograman 2",
         gedung: "Gedung CA",
         prodi: "Sistem Informasi",
-        peminjam: "Ibu Siti Aminah",
+        peminjam: "-",
         durasi: 2,
       },
       "4-0": {
         status: "menunggu",
         lab: "Lab Jaringan",
         gedung: "Gedung CB",
-        prodi: "Teknologi Digital",
-        peminjam: "Bpk. Lukman",
+        prodi: "Komunikasi Digital dan Media",
+        peminjam: "Zaldi",
         durasi: 1,
       },
       "0-1": {
         status: "tersedia",
         lab: "Lab Hardware",
         gedung: "Gedung CB",
-        prodi: "Teknologi Digital",
-        peminjam: "Tim Lab",
+        prodi: "Teknologi Rekayasa Komputer",
+        peminjam: "-",
         durasi: 1,
       },
       "1-1": {
         status: "digunakan",
         lab: "Lab Desain Kreatif",
         gedung: "Gedung CA",
-        prodi: "Komunikasi",
-        peminjam: "Bpk. Rahmat",
+        prodi: "Komunikasi Digital dan Media",
+        peminjam: "Raffa Lagi",
         durasi: 3,
       },
       "4-1": {
@@ -150,7 +150,7 @@ export default function MonitoringLabVokasi() {
         lab: "Lab Robotik",
         gedung: "Gedung CB",
         prodi: "Sistem Informasi",
-        peminjam: "Bpk. Andi",
+        peminjam: "-",
         durasi: 2,
       },
       "5-2": {
@@ -198,7 +198,7 @@ export default function MonitoringLabVokasi() {
         lab: "Lab Open Source",
         gedung: "Gedung CA",
         prodi: "Teknologi Digital",
-        peminjam: "Bpk. Farhan",
+        peminjam: "-",
         durasi: 2,
       },
       "2-5": {
@@ -392,7 +392,7 @@ export default function MonitoringLabVokasi() {
 
                       <div>
                         <p className="text-blue-200 text-[12px] font-bold uppercase tracking-widest mb-3">
-                          Sesi Pelayanan
+                          Jam Operasional
                         </p>
                         <div className="flex items-end gap-2">
                           <span className="text-4xl font-extrabold tracking-tighter">
@@ -427,236 +427,290 @@ export default function MonitoringLabVokasi() {
       </section>
 
       {/* SECTION 3: MONITORING JADWAL */}
-<section className="pt-12 pb-0 bg-[#F8FAFF]">
-  <div className="w-full">
-    {/* HEADER SECTION */}
-    <div className="flex flex-col items-center text-center mb-10 px-4">
-      <h2 className="text-3xl font-bold text-[#263C92] mb-2 tracking-tight">
-        Monitoring Penggunaan Lab
-      </h2>
-      <p className="text-sm text-slate-500 font-normal tracking-wide mb-8">
-        Update real-time jadwal penggunaan ruangan laboratorium.
-      </p>
+      <section className="pt-12 pb-0 bg-[#F8FAFF]">
+        <div className="w-full">
+          {/* HEADER SECTION */}
+          <div className="flex flex-col items-center text-center mb-10 px-4">
+            <h2 className="text-3xl font-bold text-[#263C92] mb-2 tracking-tight">
+              Monitoring Penggunaan Lab
+            </h2>
+            <p className="text-sm text-slate-500 font-normal tracking-wide mb-8">
+              Update real-time jadwal penggunaan ruangan laboratorium.
+            </p>
 
-      {/* FILTER & NAVIGASI */}
-      <div className="flex flex-wrap justify-center gap-4 w-full">
-        <div className="relative">
-          <select
-            value={selectedGedung}
-            onChange={(e) => setSelectedGedung(e.target.value)}
-            className="bg-white border border-slate-200 rounded-2xl pl-11 pr-10 py-3 text-[12px] font-semibold text-[#263C92] outline-none shadow-sm appearance-none min-w-[200px] focus:ring-2 focus:ring-[#263C92]/10 transition-all"
-          >
-            <option>Semua Gedung</option>
-            <option>Gedung CA</option>
-            <option>Gedung CB</option>
-          </select>
-          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E40082]" />
-        </div>
-
-        <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
-          <button
-            onClick={handlePrevWeek}
-            className="p-2 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <ChevronLeft className="w-5 h-5 text-[#263C92]" />
-          </button>
-          <span className="px-6 text-[11px] font-bold text-[#263C92] uppercase tracking-widest min-w-[150px] sm:min-w-[200px] text-center">
-            {rangeLabel}
-          </span>
-          <button
-            onClick={handleNextWeek}
-            className="p-2 hover:bg-slate-50 rounded-xl transition-colors"
-          >
-            <ChevronRight className="w-5 h-5 text-[#263C92]" />
-          </button>
-        </div>
-      </div>
-    </div>
-
-    {/* TABLE CONTAINER - RESPONSIVE SCROLL */}
-    <div className="bg-white rounded-t-[40px] border-t border-slate-100 overflow-hidden">
-      <div className="overflow-x-auto scrollbar-hide pb-4">
-        <table className="w-full min-w-[850px] table-fixed border-collapse">
-          <thead>
-            <tr className="bg-white border-b border-slate-100">
-              <th className="w-20 sm:w-28 p-6 border-r border-slate-50 text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-                Sesi
-              </th>
-              {hariKerja.map((h, i) => (
-                <th
-                  key={i}
-                  className={`p-5 text-center transition-all duration-300 ${
-                    h.isToday ? "bg-[#E40082]" : "bg-white"
-                  }`}
+            {/* FILTER & NAVIGASI */}
+            <div className="flex flex-wrap justify-center gap-4 w-full">
+              <div className="relative">
+                <select
+                  value={selectedGedung}
+                  onChange={(e) => setSelectedGedung(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-2xl pl-11 pr-10 py-3 text-[12px] font-semibold text-[#263C92] outline-none shadow-sm appearance-none min-w-[200px] focus:ring-2 focus:ring-[#263C92]/10 transition-all"
                 >
-                  <span
-                    className={`block text-[14px] font-bold uppercase mb-1 ${
-                      h.isToday ? "text-white" : "text-[#263C92]"
-                    }`}
-                  >
-                    {h.hari}
-                  </span>
-                  <span
-                    className={`text-[10px] font-medium px-3 py-1 rounded-full ${
-                      h.isToday
-                        ? "bg-white/20 text-white"
-                        : "text-slate-400 bg-slate-50"
-                    }`}
-                  >
-                    {h.tgl}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {jamKuliah.map((j, idx) => (
-              <tr key={idx}>
-                <td className="p-6 border-r border-slate-50 bg-slate-50/20 text-center">
-                  <div className="flex flex-col items-center">
-                    <span className="text-[14px] font-bold text-[#263C92]">
-                      {j.start}
-                    </span>
-                    <div className="w-4 h-[2px] bg-[#E40082] my-1 rounded-full"></div>
-                    <span className="text-[12px] font-medium text-slate-400">
-                      {j.end}
-                    </span>
-                  </div>
-                </td>
+                  <option>Semua Gedung</option>
+                  <option>Gedung CA</option>
+                  <option>Gedung CB</option>
+                </select>
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E40082]" />
+              </div>
 
-                {hariKerja.map((hari, hIdx) => {
-                  let isCovered = false;
-                  for (let k = 1; k <= idx; k++) {
-                    const prevData = getDemoData(idx - k, hIdx);
-                    if (prevData && prevData.durasi > k) {
-                      isCovered = true;
-                      break;
-                    }
-                  }
-                  if (isCovered) return null;
-
-                  const data = getDemoData(idx, hIdx);
-                  const rowSpan = data?.durasi || 1;
-
-                  return (
-                    <td
-                      key={hIdx}
-                      rowSpan={rowSpan}
-                      className="p-2 sm:p-3 align-top border-r border-slate-50/50 h-56 sm:h-60"
-                    >
-                      {data ? (
-                        /* CARD ISI (JADWAL) */
-                        <motion.div
-                          whileHover={{ y: -2 }}
-                          className="bg-white border border-slate-100 rounded-2xl p-3 sm:p-4 shadow-sm h-full flex flex-col justify-between transition-all group relative overflow-hidden"
-                        >
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start mb-2 gap-1">
-                              <span className="text-[8px] sm:text-[9px] font-bold text-[#E40082] uppercase tracking-tighter bg-[#FFF0F7] px-2 py-0.5 rounded truncate">
-                                {data.gedung}
-                              </span>
-                              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full shrink-0 ${
-                                data.status === "digunakan" ? "bg-rose-50 text-rose-600" : 
-                                data.status === "menunggu" ? "bg-amber-50 text-amber-600" : 
-                                "bg-emerald-50 text-emerald-600"
-                              }`}>
-                                <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">{data.status}</span>
-                              </div>
-                            </div>
-                            <h4 className="text-[11px] sm:text-[13px] font-bold text-[#263C92] leading-tight mb-2 line-clamp-2">
-                              {data.lab}
-                            </h4>
-                            <div className="flex items-center gap-2 text-slate-400">
-                              <Users className="w-3 h-3 shrink-0" />
-                              <span className="text-[10px] font-normal truncate">
-                                {data.prodi}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
-                            <div className="flex items-center gap-2 text-[#263C92]">
-                              <Clock className="w-3 h-3 text-[#E40082] shrink-0" />
-                              <span className="text-[10px] sm:text-[11px] font-bold">
-                                {j.start} - {jamKuliah[idx + rowSpan - 1]?.end}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => setActiveModal({...data, waktu: `${j.start} - ${jamKuliah[idx + rowSpan - 1]?.end}`})}
-                              className="w-full flex items-center justify-center gap-2 bg-[#263C92] sm:bg-slate-50 text-white sm:text-slate-600 py-2.5 sm:py-2 rounded-xl text-[10px] font-bold sm:font-semibold active:scale-95 transition-all"
-                            >
-                              <Eye className="w-3.5 h-3.5" /> Detail
-                            </button>
-                          </div>
-                        </motion.div>
-                      ) : (
-                        /* CARD KOSONG (AVAILABLE) - PERBAIKAN TOMBOL AGAR TIDAK KELUAR */
-                        <motion.div
-                          whileHover={{ scale: 1.01, borderColor: "#263C92" }}
-                          className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-3 sm:p-4 h-full flex flex-col justify-between transition-all group overflow-hidden"
-                        >
-                          <div className="flex-1">
-                            <div className="flex justify-between items-start mb-2">
-                              <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded">
-                                Gedung CB
-                              </span>
-                              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-400">
-                                <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">Kosong</span>
-                              </div>
-                            </div>
-                            <h4 className="text-[11px] sm:text-[13px] font-medium text-slate-400 leading-tight mb-2 italic">
-                              Lab Terbuka
-                            </h4>
-                            <div className="flex items-center gap-2 text-slate-300">
-                              <Users className="w-3 h-3 shrink-0" />
-                              <span className="text-[9px] sm:text-[10px] font-normal italic">Belum Terjadwal</span>
-                            </div>
-                          </div>
-
-                          <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
-                            <div className="flex items-center gap-2 text-slate-300">
-                              <Clock className="w-3 h-3 shrink-0" />
-                              <span className="text-[10px] sm:text-[11px] font-semibold">{j.start} - {j.end}</span>
-                            </div>
-                            <button
-                              onClick={() => (window.location.href = "/labvoks/booking")}
-                              className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-[#263C92] py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase hover:bg-[#263C92] hover:text-white transition-all active:scale-95 shadow-sm"
-                            >
-                              <CalendarPlus className="w-3.5 h-3.5" /> Booking
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* LEGEND */}
-      <div className="flex flex-wrap justify-center gap-x-10 gap-y-4 bg-white pt-8 pb-6 px-8 border-t border-slate-50">
-        {[
-          { label: "Digunakan", color: "bg-rose-500", desc: "Sedang dipakai" },
-          { label: "Menunggu", color: "bg-amber-500", desc: "Verifikasi" },
-          { label: "Tersedia", color: "bg-emerald-500", desc: "Siap Scan" },
-          { label: "Maintenance", color: "bg-slate-400", desc: "Perbaikan" },
-          { label: "Kosong", color: "border-2 border-dashed border-slate-300", desc: "Bisa Booking" },
-        ].map((l, i) => (
-          <div key={i} className="flex items-center gap-3">
-            <span className={`w-3 h-3 rounded-full shrink-0 ${l.color}`}></span>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-[#263C92] uppercase tracking-tighter leading-none">{l.label}</span>
-              <span className="text-[9px] text-slate-400 font-normal">{l.desc}</span>
+              <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-sm">
+                <button
+                  onClick={handlePrevWeek}
+                  className="p-2 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5 text-[#263C92]" />
+                </button>
+                <span className="px-6 text-[11px] font-bold text-[#263C92] uppercase tracking-widest min-w-[150px] sm:min-w-[200px] text-center">
+                  {rangeLabel}
+                </span>
+                <button
+                  onClick={handleNextWeek}
+                  className="p-2 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5 text-[#263C92]" />
+                </button>
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  </div>
-</section>
+
+          {/* TABLE CONTAINER - RESPONSIVE SCROLL */}
+          <div className="bg-white rounded-t-[40px] border-t border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto scrollbar-hide pb-4">
+              <table className="w-full min-w-[850px] table-fixed border-collapse">
+                <thead>
+                  <tr className="bg-white border-b border-slate-100">
+                    <th className="w-20 sm:w-28 p-6 border-r border-slate-50 text-center text-[10px] font-bold text-[#E40082] uppercase tracking-widest">
+                      Waktu
+                    </th>
+                    {hariKerja.map((h, i) => (
+                      <th
+                        key={i}
+                        className={`p-5 text-center transition-all duration-300 ${
+                          h.isToday ? "bg-[#E40082]" : "bg-white"
+                        }`}
+                      >
+                        <span
+                          className={`block text-[14px] font-bold uppercase mb-1 ${
+                            h.isToday ? "text-white" : "text-[#263C92]"
+                          }`}
+                        >
+                          {h.hari}
+                        </span>
+                        <span
+                          className={`text-[10px] font-medium px-3 py-1 rounded-full ${
+                            h.isToday
+                              ? "bg-white/20 text-white"
+                              : "text-slate-400 bg-slate-50"
+                          }`}
+                        >
+                          {h.tgl}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {jamKuliah.map((j, idx) => (
+                    <tr key={idx}>
+                      <td className="p-6 border-r border-slate-50 bg-slate-50/20 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="text-[14px] font-bold text-[#263C92]">
+                            {j.start}
+                          </span>
+                          <div className="w-4 h-[2px] bg-[#E40082] my-1 rounded-full"></div>
+                          <span className="text-[12px] font-medium text-slate-400">
+                            {j.end}
+                          </span>
+                        </div>
+                      </td>
+
+                      {hariKerja.map((hari, hIdx) => {
+                        let isCovered = false;
+                        for (let k = 1; k <= idx; k++) {
+                          const prevData = getDemoData(idx - k, hIdx);
+                          if (prevData && prevData.durasi > k) {
+                            isCovered = true;
+                            break;
+                          }
+                        }
+                        if (isCovered) return null;
+
+                        const data = getDemoData(idx, hIdx);
+                        const rowSpan = data?.durasi || 1;
+
+                        return (
+                          <td
+                            key={hIdx}
+                            rowSpan={rowSpan}
+                            className="p-2 sm:p-3 align-top border-r border-slate-50/50 h-56 sm:h-60"
+                          >
+                            {data ? (
+                              /* CARD ISI (JADWAL) */
+                              <motion.div
+                                whileHover={{ y: -2 }}
+                                className="bg-white border border-slate-100 rounded-2xl p-3 sm:p-4 shadow-sm h-full flex flex-col justify-between transition-all group relative overflow-hidden"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-start mb-2 gap-1">
+                                    <span className="text-[8px] sm:text-[9px] font-bold text-[#E40082] uppercase tracking-tighter bg-[#FFF0F7] px-2 py-0.5 rounded truncate">
+                                      {data.gedung}
+                                    </span> 
+                                    {/* bagde label color */}
+                                    <div 
+                                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full shrink-0 ${
+                                        data.status === "digunakan"
+                                          ? "bg-rose-50 text-rose-600"
+                                          : data.status === "menunggu"
+                                            ? "bg-amber-50 text-amber-600"
+                                            : data.status === "maintenance" ||
+                                                data.status === "maintance"
+                                              ? "bg-slate-100 text-slate-500 border border-slate-200"
+                                              : "bg-emerald-50 text-emerald-600"
+                                      }`}
+                                    >
+                                      <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">
+                                        {data.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <h4 className="text-[11px] sm:text-[13px] font-bold text-[#263C92] leading-tight mb-2 line-clamp-2">
+                                    {data.lab}
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-slate-400">
+                                    <Users className="w-3 h-3 shrink-0" />
+                                    <span className="text-[10px] font-normal truncate">
+                                      {data.prodi}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
+                                  <div className="flex items-center gap-2 text-[#263C92]">
+                                    <Clock className="w-3 h-3 text-[#E40082] shrink-0" />
+                                    <span className="text-[10px] sm:text-[11px] font-bold">
+                                      {j.start} -{" "}
+                                      {jamKuliah[idx + rowSpan - 1]?.end}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      setActiveModal({
+                                        ...data,
+                                        waktu: `${j.start} - ${jamKuliah[idx + rowSpan - 1]?.end}`,
+                                      })
+                                    }
+                                    className="w-full flex items-center justify-center gap-2 bg-[#263C92] sm:bg-slate-50 text-white sm:text-slate-600 py-2.5 sm:py-2 rounded-xl text-[10px] font-bold sm:font-semibold active:scale-95 transition-all"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" /> Detail
+                                  </button>
+                                </div>
+                              </motion.div>
+                            ) : (
+                              /* CARD KOSONG (AVAILABLE) - PERBAIKAN TOMBOL AGAR TIDAK KELUAR */
+                              <motion.div
+                                whileHover={{
+                                  scale: 1.01,
+                                  borderColor: "#263C92",
+                                }}
+                                className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-3 sm:p-4 h-full flex flex-col justify-between transition-all group overflow-hidden"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded">
+                                      Gedung CB
+                                    </span>
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-400">
+                                      <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">
+                                        Kosong
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <h4 className="text-[11px] sm:text-[13px] font-medium text-slate-400 leading-tight mb-2 italic">
+                                    Lab Terbuka
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-slate-300">
+                                    <Users className="w-3 h-3 shrink-0" />
+                                    <span className="text-[9px] sm:text-[10px] font-normal italic">
+                                      Belum Terjadwal
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
+                                  <div className="flex items-center gap-2 text-slate-300">
+                                    <Clock className="w-3 h-3 shrink-0" />
+                                    <span className="text-[10px] sm:text-[11px] font-semibold">
+                                      {j.start} - {j.end}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      (window.location.href = "/booking")
+                                    }
+                                    className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-[#263C92] py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase hover:bg-[#263C92] hover:text-white transition-all active:scale-95 shadow-sm"
+                                  >
+                                    <CalendarPlus className="w-3.5 h-3.5" />{" "}
+                                    Booking
+                                  </button>
+                                </div>
+                              </motion.div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* LEGEND */}
+            <div className="flex flex-wrap justify-center gap-x-10 gap-y-4 bg-white pt-8 pb-6 px-8 border-t border-slate-50">
+              {[
+                {
+                  label: "Digunakan",
+                  color: "bg-rose-500",
+                  desc: "Sedang dipakai",
+                },
+                {
+                  label: "Menunggu",
+                  color: "bg-amber-500",
+                  desc: "Verifikasi",
+                },
+                {
+                  label: "Tersedia",
+                  color: "bg-emerald-500",
+                  desc: "Siap Scan",
+                },
+                {
+                  label: "Maintenance",
+                  color: "bg-slate-600",
+                  desc: "Perbaikan",
+                },
+                {
+                  label: "Kosong",
+                  color: "border-2 border-dashed border-slate-300",
+                  desc: "Bisa Booking",
+                },
+              ].map((l, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span
+                    className={`w-3 h-3 rounded-full shrink-0 ${l.color}`}
+                  ></span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-[#263C92] uppercase tracking-tighter leading-none">
+                      {l.label}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-normal">
+                      {l.desc}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
       {/* --- MODAL DETAIL --- */}
       <AnimatePresence>
         {activeModal && (
@@ -696,7 +750,7 @@ export default function MonitoringLabVokasi() {
                           ? "bg-amber-50 text-amber-600"
                           : activeModal.status === "tersedia"
                             ? "bg-emerald-50 text-emerald-600"
-                            : "bg-slate-100 text-slate-600"
+                            : "bg-slate-50 text-slate-400"
                     }`}
                   >
                     {activeModal.status}
@@ -714,7 +768,7 @@ export default function MonitoringLabVokasi() {
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                      Peminjam / Dosen
+                      Peminjam
                     </p>
                     <p className="text-base font-semibold text-[#263C92]">
                       {activeModal.peminjam}
@@ -745,7 +799,7 @@ export default function MonitoringLabVokasi() {
 
               {activeModal.status === "tersedia" && (
                 <button
-                  onClick={() => (window.location.href = "/labvoks/scan")}
+                  onClick={() => (window.location.href = "/scan")}
                   className="w-full mt-10 bg-[#263C92] text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#1a2b6d] transition-all shadow-lg shadow-blue-900/10"
                 >
                   <QrCode className="w-5 h-5" /> Buka Scanner

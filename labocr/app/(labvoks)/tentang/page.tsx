@@ -17,7 +17,6 @@ import {
   MapPin,
   ScanFace,
   Clock,
-  BellRing,
 } from "lucide-react";
 
 // 1. Definisikan Variants
@@ -52,11 +51,7 @@ export default function TentangPage() {
     },
     {
       q: "Kapan pintu laboratorium akan dibukakan?",
-      a: "Pintu akan dibukakan secara otomatis oleh sistem 10-15 menit sebelum jam jadwal praktikum Anda dimulai, pastikan Anda sudah menyelesaikan semua tahapan validasi.",
-    },
-    {
-      q: "Apakah saya bisa membatalkan reservasi yang sudah dikonfirmasi?",
-      a: "Bisa, namun harus dilakukan melalui dashboard akun Anda minimal 1 jam sebelum jadwal dimulai agar kuota ruangan dapat dialokasikan untuk mahasiswa lain.",
+      a: "Pintu akan dibukakan secara otomatis oleh sistem segera setelah seluruh proses validasi biometrik dan administrasi selesai dilakukan.",
     },
     {
       q: "Apa sanksinya jika saya melanggar aturan penggunaan lab?",
@@ -64,7 +59,6 @@ export default function TentangPage() {
     },
   ];
 
-  // DATA ATURAN YANG SUDAH DIPERBAIKI SESUAI REQUEST
   const rules = [
     { 
       title: "AKSES DAN KEHADIRAN", 
@@ -92,7 +86,7 @@ export default function TentangPage() {
     <div className="min-h-screen bg-white font-sans text-slate-900 antialiased">
       
       {/* ================= SECTION 1: HERO (FIXED) ================= */}
-      <section className="relative pt-40 pb-20 px-6 text-center bg-gradient-to-br from-[#FFF0F7] via-[#F0F4FF] to-[#F5F8FF] overflow-hidden">
+      <section className="relative pt-32 pb-10 px-6 text-center bg-gradient-to-br from-[#FFF0F7] via-[#F0F4FF] to-[#F5F8FF] overflow-hidden">
         <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp} className="relative z-10 max-w-4xl mx-auto">
           <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-4 py-1.5 rounded-full mb-6 shadow-sm">
             <Info className="w-4 h-4 text-[#263C92]" />
@@ -131,12 +125,12 @@ export default function TentangPage() {
         </div>
       </section>
 
-      {/* ================= SECTION 2: ALUR & TATA TERTIB ================= */}
+      {/* ================= SECTION 2: ALUR & TATA TERTIB (REVISED ALUR) ================= */}
       <section className="py-16 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={staggerContainer} className="grid lg:grid-cols-2 gap-10 items-start">
             
-            {/* Tata Cara (Visual Alur) */}
+            {/* Tata Cara (Visual Alur) - UPDATED TO 4 STEPS */}
             <div className="lg:pr-5">
               <h2 className="text-2xl font-bold text-[#263C92] mb-10 flex items-center gap-3">
                 <CheckCircle2 className="text-[#E40082]" /> Alur Penggunaan Lab
@@ -144,12 +138,10 @@ export default function TentangPage() {
               <div className="relative space-y-0">
                 <div className="absolute left-[19px] top-2 bottom-2 w-0.5 bg-slate-100 md:block hidden" />
                 {[
-                  { title: "Verifikasi Wajah", desc: "Lakukan pemindaian wajah (Face Recognition) sebagai langkah keamanan biometrik utama.", icon: <ScanFace /> },
-                  { title: "Scan KTM Digital", desc: "Tempelkan QR Code KTM Digital Anda pada perangkat scanner yang tersedia di pintu lab.", icon: <QrCode /> },
-                  { title: "Persetujuan", desc: "Setujui pakta integritas dan tanggung jawab penggunaan sarana yang muncul di sistem.", icon: <FileText /> },
-                  { title: "Pilih Sesi Praktikum", desc: "Pilih Laboratorium, Gedung, dan Jam sesi yang sesuai dengan jadwal terjadwal Anda.", icon: <Clock /> },
-                  { title: "Validasi Admin", desc: "Data akan divalidasi secara sistematis dan dikonfirmasi oleh Admin/Laboran yang bertugas.", icon: <UserCheck /> },
-                  { title: "Akses Berhasil", desc: "Notifikasi akan muncul dan pintu akan otomatis dapat dibuka 10-15 menit sebelum sesi dimulai.", icon: <BellRing /> },
+                  { title: "Scan KTM Digital", desc: "Pindai QR Code KTM Digital Anda pada perangkat scanner untuk memulai proses identifikasi.", icon: <QrCode /> },
+                  { title: "Verifikasi Wajah", desc: "Lakukan pemindaian wajah (Face Recognition) untuk validasi keamanan biometrik pengguna.", icon: <ScanFace /> },
+                  { title: "Syarat & Ketentuan", desc: "Baca dan setujui pakta integritas mengenai tanggung jawab penggunaan fasilitas laboratorium.", icon: <FileText /> },
+                  { title: "Akses Berhasil", desc: "Setelah validasi selesai, sistem akan membuka kunci pintu laboratorium secara otomatis.", icon: <CheckCircle2 /> },
                 ].map((item, i) => (
                   <motion.div key={i} variants={fadeInUp} className="relative flex gap-6 pb-8 last:pb-0 group">
                     <div className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full bg-white border-2 border-[#263C92] text-[#263C92] group-hover:bg-[#E40082] group-hover:border-[#E40082] group-hover:text-white flex items-center justify-center font-bold text-xs transition-all duration-300 shadow-sm">
@@ -164,7 +156,7 @@ export default function TentangPage() {
               </div>
             </div>
 
-            {/* TATA TERTIB PENGGUNAAN (REVISI TEKS) */}
+            {/* TATA TERTIB PENGGUNAAN (FIXED) */}
             <div className="bg-[#F8FAFF] p-8 md:p-10 rounded-[40px] border border-slate-100 sticky top-24 shadow-sm">
               <h2 className="text-2xl font-bold text-[#263C92] mb-6">Tata Tertib Penggunaan</h2>
               <div className="space-y-4">
@@ -189,11 +181,11 @@ export default function TentangPage() {
         </div>
       </section>
 
-      {/* ================= SECTION 3: FAQ (JARAK RAPAT) ================= */}
+      {/* ================= SECTION 3: FAQ (FIXED) ================= */}
       <section className="py-12 px-6 bg-[#F8FAFF]">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-[#263C92] mb-2">Pertanyaan Populer</h2>
+            <h2 className="text-2xl font-bold text-[#263C92] mb-2">FAQ</h2>
             <p className="text-slate-500 text-xs italic">Jawaban singkat untuk kendala teknis Anda.</p>
           </div>
           <div className="space-y-2">
@@ -222,7 +214,7 @@ export default function TentangPage() {
         </div>
       </section>
 
-      {/* ================= SECTION 4: KONTAK (NO WHATSAPP) ================= */}
+      {/* ================= SECTION 4: KONTAK (FIXED) ================= */}
       <section className="py-20 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="bg-[#263C92] rounded-[40px] p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-10 overflow-hidden relative shadow-2xl">
@@ -261,7 +253,6 @@ export default function TentangPage() {
           </div>
         </div>
       </section>
-
     </div>
   );
 }
