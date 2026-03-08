@@ -73,7 +73,7 @@ const menuItems = [
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
@@ -88,6 +88,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const handleMarkAsDone = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: "done" } : n));
   };
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    // Check auth as soon as the layout mounts on the client
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+    } else {
+      setIsAuthenticated(true);
+    }
+  }, [router]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -110,12 +122,18 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   const confirmLogout = () => {
     setShowLogoutModal(false);
+    localStorage.removeItem("admin_jwt_token");
     router.push("/auth/login");
   };
 
+  // Prevent flash of unauthenticated content
+  if (!isAuthenticated) {
+    return null; // Or return a loading spinner here if desired
+  }
+
   return (
     <div className="flex h-screen bg-[#F1F5F9] text-slate-900 overflow-hidden font-sans">
-      
+
       {/* MODAL KONFIRMASI LOGOUT */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -152,8 +170,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <span className="text-[10px] font-medium text-blue-200/80 uppercase tracking-wider mt-1">Sekolah Vokasi IPB</span>
               </div>
             )}
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)} 
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
               className={`p-1.5 hover:bg-blue-800 rounded-lg transition-colors ${!sidebarOpen ? "mx-auto" : ""}`}
             >
               {sidebarOpen ? <XMarkIcon className="h-6 w-6" /> : <Bars3Icon className="h-6 w-6" />}
