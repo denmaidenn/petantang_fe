@@ -236,6 +236,113 @@ export interface LabStatusResponse {
   peminjaman_pending: Peminjaman[];
 }
 
+export interface Lab {
+  id: number;
+  name: string;
+  location: string;
+  capacity: number;
+  opStart: string;
+  opEnd: string;
+  useStart: string;
+  useEnd: string;
+  equipment: string[];
+  statusOverride?: string | null;
+  created_at?: string;
+}
+
+export interface Schedule {
+  id: number;
+  mataKuliah: string;
+  kelas: string;
+  prodi: string;
+  lab: string;
+  gedung: string;
+  hari: string;
+  jamMulai: string;
+  jamSelesai: string;
+  tipeSemester: string;
+  tahunAjaran: string;
+  isArchived: boolean;
+  created_at?: string;
+}
+
+export interface PeminjamanHistory {
+  id: number;
+  nim: string;
+  nama: string;
+  prodi: string;
+  lab: string;
+  waktu_masuk: string;
+  waktu_keluar: string | null;
+  status: string;
+  catatan?: string | null;
+}
+
+function mapLabFromApi(item: any): Lab {
+  return {
+    id: item.id,
+    name: item.name,
+    location: item.location,
+    capacity: item.capacity,
+    opStart: item.op_start,
+    opEnd: item.op_end,
+    useStart: item.use_start,
+    useEnd: item.use_end,
+    equipment: item.equipment,
+    statusOverride: item.status_override,
+    created_at: item.created_at,
+  };
+}
+
+function mapLabToApi(payload: Omit<Lab, "id" | "created_at">) {
+  return {
+    name: payload.name,
+    location: payload.location,
+    capacity: payload.capacity,
+    op_start: payload.opStart,
+    op_end: payload.opEnd,
+    use_start: payload.useStart,
+    use_end: payload.useEnd,
+    equipment: payload.equipment,
+    status_override: payload.statusOverride,
+  } as const;
+}
+
+/**
+ * [ADMIN] Get all lab definitions.
+ */
+export async function getLabs(token: string): Promise<Lab[]> {
+  const raw = await fetchAPI<any[]>("/api/labs", { token });
+  return raw.map(mapLabFromApi);
+}
+
+export async function createLab(payload: Omit<Lab, "id" | "created_at">, token: string): Promise<Lab> {
+  const created = await fetchAPI<any>("/api/labs", {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mapLabToApi(payload)),
+  });
+  return mapLabFromApi(created);
+}
+
+export async function updateLab(labId: number, payload: Omit<Lab, "id" | "created_at">, token: string): Promise<Lab> {
+  const updated = await fetchAPI<any>(`/api/labs/${labId}`, {
+    method: "PUT",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mapLabToApi(payload)),
+  });
+  return mapLabFromApi(updated);
+}
+
+export function deleteLab(labId: number, token: string): Promise<{ success: boolean }> {
+  return fetchAPI<{ success: boolean }>(`/api/labs/${labId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
 /**
  * [ADMIN] Setujui mahasiswa untuk masuk lab.
  */
@@ -271,6 +378,105 @@ export function resetFace(nim: string, token: string): Promise<{ status: string;
     method: "DELETE",
     token
   });
+}
+
+/**
+ * [ADMIN] Schedule (Jadwal) endpoints.
+ */
+function mapScheduleFromApi(item: any): Schedule {
+  return {
+    id: item.id,
+    mataKuliah: item.mata_kuliah,
+    kelas: item.kelas,
+    prodi: item.prodi,
+    lab: item.lab,
+    gedung: item.gedung,
+    hari: item.hari,
+    jamMulai: item.jam_mulai,
+    jamSelesai: item.jam_selesai,
+    tipeSemester: item.tipe_semester,
+    tahunAjaran: item.tahun_ajaran,
+    isArchived: item.is_archived,
+    created_at: item.created_at,
+  };
+}
+
+function mapScheduleToApi(payload: Omit<Schedule, "id" | "isArchived" | "created_at">) {
+  return {
+    mata_kuliah: payload.mataKuliah,
+    kelas: payload.kelas,
+    prodi: payload.prodi,
+    lab: payload.lab,
+    gedung: payload.gedung,
+    hari: payload.hari,
+    jam_mulai: payload.jamMulai,
+    jam_selesai: payload.jamSelesai,
+    tipe_semester: payload.tipeSemester,
+    tahun_ajaran: payload.tahunAjaran,
+  } as const;
+}
+
+export async function getJadwal(token: string, includeArchived: boolean = false): Promise<Schedule[]> {
+  const raw = await fetchAPI<any[]>(`/api/jadwal?archived=${includeArchived}`, { token });
+  return raw.map(mapScheduleFromApi);
+}
+
+export async function createJadwal(
+  payload: Omit<Schedule, "id" | "isArchived" | "created_at">,
+  token: string,
+): Promise<Schedule> {
+  const created = await fetchAPI<any>("/api/jadwal", {
+    method: "POST",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mapScheduleToApi(payload)),
+  });
+  return mapScheduleFromApi(created);
+}
+
+export async function updateJadwal(
+  jadwalId: number,
+  payload: Omit<Schedule, "id" | "isArchived" | "created_at">,
+  token: string,
+): Promise<Schedule> {
+  const updated = await fetchAPI<any>(`/api/jadwal/${jadwalId}`, {
+    method: "PUT",
+    token,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mapScheduleToApi(payload)),
+  });
+  return mapScheduleFromApi(updated);
+}
+
+export function deleteJadwal(jadwalId: number, token: string): Promise<{ success: boolean }> {
+  return fetchAPI<{ success: boolean }>(`/api/jadwal/${jadwalId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export function archiveJadwal(token: string): Promise<{ success: boolean; archived_count: number }> {
+  return fetchAPI<{ success: boolean; archived_count: number }>(`/api/jadwal/archive`, {
+    method: "POST",
+    token,
+  });
+}
+
+/**
+ * [ADMIN] Reporting endpoints.
+ */
+export function getPeminjamanHistory(
+  token: string,
+  year?: number,
+  month?: number,
+  prodi?: string,
+): Promise<PeminjamanHistory[]> {
+  const params = new URLSearchParams();
+  if (year) params.set("year", year.toString());
+  if (month) params.set("month", month.toString());
+  if (prodi) params.set("prodi", prodi);
+  const qs = params.toString();
+  return fetchAPI<PeminjamanHistory[]>(`/api/reports/peminjaman${qs ? `?${qs}` : ""}`, { token });
 }
 
 // ─── Error Message Helper ────────────────────────────────

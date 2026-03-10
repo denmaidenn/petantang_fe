@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowDownTrayIcon,
   UserMinusIcon,
@@ -9,11 +10,14 @@ import {
   ComputerDesktopIcon,
   CalendarIcon,
   DocumentArrowDownIcon,
-  ArrowPathIcon,
   ExclamationTriangleIcon,
   XMarkIcon,
   AcademicCapIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
+import { getPeminjamanHistory, type ApiError, type PeminjamanHistory } from "@/lib/api";
+
+import Swal from "sweetalert2";
 
 interface Student {
   id: number;
@@ -64,71 +68,113 @@ const LIST_BULAN = [
   "November",
   "Desember",
 ];
+
+const MONTH_NAME_TO_NUMBER: Record<string, number> = {
+  Januari: 1,
+  Februari: 2,
+  Maret: 3,
+  April: 4,
+  Mei: 5,
+  Juni: 6,
+  Juli: 7,
+  Agustus: 8,
+  September: 9,
+  Oktober: 10,
+  November: 11,
+  Desember: 12,
+};
+
 const LIST_TAHUN = ["2024", "2025", "2026", "2027", "2028"];
 
-const MOCK_HISTORY = [
-  {
-    id: 1,
-    nama: "Budi Santoso",
-    nim: "J030321101",
-    prodi: "Teknologi Rekayasa Komputer",
-    lab: "Lab Jaringan 01",
-    tgl: "2026-02-20",
-    jam: "08:00 - 10:00",
-    durasi: 2,
-    status: "Berhasil",
-    kesalahan: "-",
-    semester: "4",
-    email: "budi@apps.ipb.ac.id",
-  },
-  {
-    id: 2,
-    nama: "Siti Aminah",
-    nim: "J030321105",
-    prodi: "Akuntansi",
-    lab: "Lab Komputer 02",
-    tgl: "2026-02-20",
-    jam: "10:00 - 12:00",
-    durasi: 2,
-    status: "Berhasil",
-    kesalahan: "-",
-    semester: "2",
-    email: "siti@apps.ipb.ac.id",
-  },
-  {
-    id: 3,
-    nama: "Andi Wijaya",
-    nim: "J030321110",
-    prodi: "Teknologi Rekayasa Perangkat Lunak",
-    lab: "Lab Jaringan 01",
-    tgl: "2026-02-19",
-    jam: "13:00 - 15:00",
-    durasi: 2,
-    status: "Terblokir",
-    kesalahan: "Membawa Makanan ke Lab",
-    semester: "6",
-    email: "andi@apps.ipb.ac.id",
-  },
-];
-
 export default function LaporanLaboratorium() {
+  const router = useRouter();
+  const [history, setHistory] = useState<PeminjamanHistory[]>([]);
   const [filterProdi, setFilterProdi] = useState("Semua Prodi");
   const [filterBulan, setFilterBulan] = useState("Februari");
   const [filterTahun, setFilterTahun] = useState("2026");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const loadHistory = async () => {
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    setIsLoading(true);
+    setFetchError(null);
+
+    try {
+      const monthNum = MONTH_NAME_TO_NUMBER[filterBulan];
+      const data = await getPeminjamanHistory(
+        token,
+        parseInt(filterTahun, 10),
+        monthNum,
+        filterProdi === "Semua Prodi" ? undefined : filterProdi,
+      );
+      setHistory(data);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setFetchError(apiErr.detail || "Gagal memuat laporan.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadHistory();
+  }, [filterProdi, filterBulan, filterTahun, router]);
+
+  const formattedHistory = useMemo(() => {
+    return history.map((item) => {
+      const masuk = item.waktu_masuk ? new Date(item.waktu_masuk) : null;
+      const keluar = item.waktu_keluar ? new Date(item.waktu_keluar) : null;
+
+      const tgl = masuk ? masuk.toISOString().split("T")[0] : "";
+      const jamMasuk = masuk
+        ? masuk.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+        : "";
+      const jamKeluar = keluar
+        ? keluar.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", hour12: false })
+        : "";
+      const jam = jamKeluar ? `${jamMasuk} - ${jamKeluar}` : jamMasuk;
+
+      const durasi = keluar && masuk
+        ? Math.round(((keluar.getTime() - masuk.getTime()) / (1000 * 60 * 60)) * 10) / 10
+        : 0;
+
+      const status = item.status === "ditolak" ? "Terblokir" : "Berhasil";
+
+      return {
+        id: item.id,
+        nama: item.nama,
+        nim: item.nim,
+        prodi: item.prodi,
+        lab: item.lab,
+        tgl,
+        jam,
+        durasi,
+        status,
+        kesalahan: item.catatan || "-",
+        semester: "-",
+        email: "-",
+      };
+    });
+  }, [history]);
 
   const filteredData = useMemo(() => {
-    return MOCK_HISTORY.filter((item) => {
+    return formattedHistory.filter((item) => {
       const matchProdi =
         filterProdi === "Semua Prodi" || item.prodi === filterProdi;
-      const matchWaktu = item.tgl.includes(filterTahun);
-      return matchProdi && matchWaktu;
+      return matchProdi;
     });
-  }, [filterProdi, filterBulan, filterTahun]);
+  }, [formattedHistory, filterProdi]);
 
   const blockedData = useMemo(
-    () => MOCK_HISTORY.filter((item) => item.status === "Terblokir"),
-    [],
+    () => formattedHistory.filter((item) => item.status === "Terblokir"),
+    [formattedHistory],
   );
 
   return (
@@ -184,13 +230,13 @@ export default function LaporanLaboratorium() {
 
             <div className="flex gap-2">
               <button
-                onClick={() => alert("Exporting PDF...")}
+                onClick={() => Swal.fire({ icon: "info", title: "Exporting PDF...", showConfirmButton: false, timer: 1000 })}
                 className="bg-[#263C92] hover:bg-[#1d2e70] transition-all text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm"
               >
                 <DocumentArrowDownIcon className="h-4 w-4" /> PDF
               </button>
               <button
-                onClick={() => alert("Exporting Excel...")}
+                onClick={() => Swal.fire({ icon: "info", title: "Exporting Excel...", showConfirmButton: false, timer: 1000 })}
                 className="bg-emerald-600 hover:bg-emerald-700 transition-all text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm"
               >
                 <ArrowDownTrayIcon className="h-4 w-4" /> EXCEL
@@ -199,6 +245,22 @@ export default function LaporanLaboratorium() {
           </div>
         </div>
       </header>
+
+      {fetchError && (
+        <div className="max-w-7xl mx-auto px-6 mb-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+            {fetchError}
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="max-w-7xl mx-auto px-6 mb-4">
+          <div className="bg-white border border-slate-200 text-slate-600 px-6 py-4 rounded-lg">
+            Memuat laporan...
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-6 mt-8 space-y-8">
         {/* STATS CARDS */}
@@ -340,7 +402,7 @@ export default function LaporanLaboratorium() {
             </h3>
             {/* DOWNLOAD DI ATAS TABLE */}
             <button
-              onClick={() => alert("Downloading Data...")}
+              onClick={() => Swal.fire({ icon: "info", title: "Downloading Data...", showConfirmButton: false, timer: 1000 })}
               className="text-xs font-bold text-slate-500 hover:text-red-600 flex items-center gap-2 border border-slate-200 px-4 py-2 rounded-lg shadow-sm bg-white transition-all"
             >
               <DocumentArrowDownIcon className="h-4 w-4" /> Download List
@@ -515,7 +577,7 @@ export default function LaporanLaboratorium() {
                 </button>
                 <button
                   onClick={() => {
-                    alert(`Akses ${selectedStudent.nama} dipulihkan!`);
+                    Swal.fire({ icon: "success", title: "Dipulihkan!", text: `Akses ${selectedStudent.nama} dipulihkan!`, showConfirmButton: false, timer: 1500 });
                     setSelectedStudent(null);
                   }}
                   className="flex-[2] py-4 bg-[#263C92] text-white text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl shadow-blue-900/20 hover:bg-[#1a2b6d] transition-all flex items-center justify-center gap-2"

@@ -13,22 +13,18 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getLabStatus,
+  getLabs,
   checkout,
+  type Lab,
   type Peminjaman,
   type ApiError,
 } from "@/lib/api";
 
+import Swal from "sweetalert2";
+
 // ─── Config ──────────────────────────────────────────────
 const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || "smartlab-admin-2025";
 const POLL_INTERVAL_MS = 5000;
-
-// ─── Static Lab Data (hardcoded per design decision) ─────
-const LABS = [
-  { id: "1", name: "Lab Komputer 1", location: "Gedung Delta", capacity: 40, opStart: "07:00", opEnd: "18:00" },
-  { id: "2", name: "Lab Komputer 2", location: "Gedung Delta", capacity: 40, opStart: "07:00", opEnd: "18:00" },
-  { id: "3", name: "Lab Multimedia", location: "Gedung Delta", capacity: 30, opStart: "07:00", opEnd: "18:00" },
-  { id: "4", name: "Lab Pemrograman", location: "Gedung Epsilon", capacity: 25, opStart: "07:00", opEnd: "18:00" },
-];
 
 // ─── Realtime Clock Component ────────────────────────────
 // Prevents the entire Dashboard from re-rendering every second.
@@ -68,6 +64,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   // ─── API State ──────────────────────────────────────
+  const [labs, setLabs] = useState<Lab[]>([]);
   const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
   const [peminjamanPending, setPeminjamanPending] = useState<Peminjaman[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -97,8 +94,11 @@ export default function DashboardPage() {
       if (!token) return;
       const { approvePeminjaman } = await import("@/lib/api");
       await approvePeminjaman(pid, token);
+      Swal.fire({ icon: "success", title: "Berhasil", text: "Peminjaman disetujui", timer: 1500 });
       fetchStatus();
     } catch (err) {
+      const apiErr = err as ApiError;
+      Swal.fire({ icon: "error", title: "Gagal", text: apiErr.detail || "Gagal menyetujui peminjaman" });
       console.error("Gagal menyetujui peminjaman", err);
     } finally {
       setActionLoadingId(null);
@@ -113,8 +113,11 @@ export default function DashboardPage() {
       if (!token) return;
       const { rejectPeminjaman } = await import("@/lib/api");
       await rejectPeminjaman(pid, token);
+      Swal.fire({ icon: "success", title: "Berhasil", text: "Peminjaman ditolak", timer: 1500 });
       fetchStatus();
     } catch (err) {
+      const apiErr = err as ApiError;
+      Swal.fire({ icon: "error", title: "Gagal", text: apiErr.detail || "Gagal menolak peminjaman" });
       console.error("Gagal menolak peminjaman", err);
     } finally {
       setActionLoadingId(null);
@@ -130,9 +133,13 @@ export default function DashboardPage() {
     }
 
     try {
-      const data = await getLabStatus(token);
-      setPeminjaman(data.peminjaman || []);
-      setPeminjamanPending(data.peminjaman_pending || []);
+      const [statusData, labsData] = await Promise.all([
+        getLabStatus(token),
+        getLabs(token)
+      ]);
+      setPeminjaman(statusData.peminjaman || []);
+      setPeminjamanPending(statusData.peminjaman_pending || []);
+      setLabs(labsData);
       setLastRefresh(new Date());
       setApiError(null);
     } catch (err) {
@@ -170,11 +177,13 @@ export default function DashboardPage() {
       const token = localStorage.getItem("admin_jwt_token") || "";
       const result = await checkout(selectedPeminjaman.nim, token);
       setCheckoutMsg(result.message || "Checkout berhasil!");
+      Swal.fire({ icon: "success", title: "Berhasil", text: "Checkout berhasil dilakukan!", timer: 1500 });
       await fetchStatus(); // refresh data
       setTimeout(() => setModalOpen(false), 1800);
     } catch (err) {
       const e = err as ApiError;
       setCheckoutMsg(`Gagal: ${e.detail || "Terjadi kesalahan."}`);
+      Swal.fire({ icon: "error", title: "Gagal", text: e.detail || "Terjadi kesalahan saat checkout." });
     } finally {
       setIsCheckoutLoading(false);
     }
@@ -189,8 +198,8 @@ export default function DashboardPage() {
   const stats = useMemo(() => [
     {
       title: "Total Laboratorium",
-      value: LABS.length.toString(),
-      subtitle: `${LABS.length - labsWithUser.size} tidak digunakan`,
+      value: labs.length.toString(),
+      subtitle: `${labs.length - labsWithUser.size} tidak digunakan`,
       color: "text-[#263C92]",
       iconBg: "bg-blue-50",
       icon: (
@@ -233,7 +242,7 @@ export default function DashboardPage() {
         </svg>
       ),
     },
-  ], [labsWithUser.size, activeCount, pendingCount]);
+  ], [labs.length, labsWithUser.size, activeCount, pendingCount]);
 
   return (
     <div className="min-h-screen w-full bg-[#F8FAFC] pb-12 font-sans antialiased">
@@ -452,7 +461,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {LABS.map((lab) => {
+            {labs.map((lab) => {
               const activePeminjaman = peminjaman.filter((p) => p.lab === lab.name);
               const isActive = activePeminjaman.length > 0;
               return (

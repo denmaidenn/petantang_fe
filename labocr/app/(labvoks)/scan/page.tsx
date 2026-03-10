@@ -28,6 +28,7 @@ import {
   type FaceResponse,
   type ApiError,
 } from "@/lib/api";
+import Swal from "sweetalert2";
 
 // ─── Types ───────────────────────────────────────────────
 interface ScanData {
@@ -54,7 +55,6 @@ const ScanLabPage = () => {
 
   // API states
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [scanData, setScanData] = useState<ScanData | null>(null);
   const [checkinData, setCheckinData] = useState<CheckinData | null>(null);
 
@@ -77,7 +77,7 @@ const ScanLabPage = () => {
       if (videoRef.current) videoRef.current.srcObject = mediaStream;
     } catch (err) {
       console.error("Camera Error:", err);
-      setError("Tidak dapat mengakses kamera. Pastikan izin kamera diberikan.");
+      Swal.fire({ icon: "error", title: "Gagal", text: "Tidak dapat mengakses kamera. Pastikan izin kamera diberikan." });
     }
   }, [facingMode]);
 
@@ -106,14 +106,13 @@ const ScanLabPage = () => {
   const handleScanKTM = async () => {
     if (!videoRef.current) return;
     setIsLoading(true);
-    setError(null);
 
     try {
       const blob = await captureFrameAsBlob(videoRef.current);
       const result: ScanResult = await scanKTM(blob);
 
       if (!result.db_verified || !result.nim_final) {
-        setError("KTM tidak dikenali. Pastikan KTM terlihat jelas dan coba lagi.");
+        Swal.fire({ icon: "error", title: "KTM Tidak Dikenali", text: "Pastikan KTM terlihat jelas dan coba lagi." });
         setIsLoading(false);
         return;
       }
@@ -121,7 +120,7 @@ const ScanLabPage = () => {
       // ── Cek sesi aktif sebelum lanjut ke face verify ─────
       // Terdeteksi dari backend melalui action_required
       if (result.action_required === "already_checked_in") {
-        setError(result.db_message || `Anda sudah memiliki sesi aktif. Lakukan checkout terlebih dahulu.`);
+        Swal.fire({ icon: "warning", title: "Sesi Aktif", text: "Anda sudah memiliki sesi aktif. Lakukan checkout terlebih dahulu." });
         setIsLoading(false);
         return;
       }
@@ -138,7 +137,7 @@ const ScanLabPage = () => {
       setCurrentStep(2);
     } catch (err) {
       const apiErr = err as ApiError;
-      setError(getErrorMessage(apiErr));
+      Swal.fire({ icon: "error", title: "Gagal Scan", text: getErrorMessage(apiErr) });
     } finally {
       setIsLoading(false);
     }
@@ -148,7 +147,6 @@ const ScanLabPage = () => {
   const handleFaceAction = async () => {
     if (!videoRef.current || !scanData) return;
     setIsLoading(true);
-    setError(null);
 
     try {
       const base64 = captureFrameAsBase64(videoRef.current);
@@ -173,12 +171,12 @@ const ScanLabPage = () => {
       if (apiErr.status === 409 && scanData.action_required === "face_enroll") {
         // Face already enrolled → try verify instead
         setScanData({ ...scanData, action_required: "face_verify" });
-        setError("Wajah sudah terdaftar. Tekan tombol untuk verifikasi ulang.");
+        Swal.fire({ icon: "info", title: "Terdaftar", text: "Wajah sudah terdaftar. Tekan tombol untuk verifikasi ulang." });
       } else if (apiErr.status === 409 && scanData.action_required === "face_verify") {
         // Already checked in
-        setError("Anda sudah berada di dalam lab (sesi peminjaman aktif). Silahkan check-out terlebih dahulu sebelum verifikasi lagi.");
+        Swal.fire({ icon: "warning", title: "Sesi Aktif", text: "Anda sudah berada di dalam lab (sesi peminjaman aktif). Silahkan check-out terlebih dahulu sebelum verifikasi lagi." });
       } else {
-        setError(getErrorMessage(apiErr));
+        Swal.fire({ icon: "error", title: "Gagal Verifikasi", text: getErrorMessage(apiErr) });
       }
     } finally {
       setIsLoading(false);
@@ -270,15 +268,6 @@ const ScanLabPage = () => {
                     <RefreshCcw size={18} />
                   </button>
                 </div>
-
-                {/* Error Banner */}
-                {error && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 w-full bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
-                    <AlertCircle size={18} className="text-rose-500 shrink-0 mt-0.5" />
-                    <p className="text-xs font-bold text-rose-600 leading-relaxed">{error}</p>
-                  </motion.div>
-                )}
-
                 {/* Scan Button */}
                 <button
                   onClick={handleScanKTM}
@@ -344,15 +333,6 @@ const ScanLabPage = () => {
                     <RefreshCcw size={18} />
                   </button>
                 </div>
-
-                {/* Error Banner */}
-                {error && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6 w-full bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
-                    <AlertCircle size={18} className="text-rose-500 shrink-0 mt-0.5" />
-                    <p className="text-xs font-bold text-rose-600 leading-relaxed">{error}</p>
-                  </motion.div>
-                )}
-
                 {/* Face Action Button */}
                 <button
                   onClick={handleFaceAction}
@@ -461,8 +441,8 @@ const ScanLabPage = () => {
             )}
           </AnimatePresence>
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 };
 

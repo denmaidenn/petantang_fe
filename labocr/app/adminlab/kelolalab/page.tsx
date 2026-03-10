@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { 
-  PlusIcon, PencilSquareIcon, BuildingOfficeIcon, 
-  ClockIcon, XMarkIcon, TrashIcon, UserIcon, 
+import { useRouter } from "next/navigation";
+import {
+  PlusIcon, PencilSquareIcon, BuildingOfficeIcon,
+  ClockIcon, XMarkIcon, TrashIcon, UserIcon,
   CheckBadgeIcon, UsersIcon, ExclamationTriangleIcon,
   ComputerDesktopIcon, WrenchScrewdriverIcon,
   ListBulletIcon, PlusCircleIcon, CalendarDaysIcon,
@@ -11,6 +12,9 @@ import {
   DocumentTextIcon, InformationCircleIcon,
   ArrowTopRightOnSquareIcon // Ikon baru untuk button laporan
 } from "@heroicons/react/24/outline";
+import { getLabs, createLab, updateLab, deleteLab, type Lab as ApiLab, type ApiError } from "@/lib/api";
+
+import Swal from "sweetalert2";
 
 // --- Types ---
 type LabStatus = "Tersedia" | "Digunakan" | "Maintenance" | "Pending";
@@ -24,47 +28,85 @@ interface LaporanBlokir {
 }
 
 interface Lab {
-  id: string; name: string; location: string; 
-  capacity: number; statusOverride?: LabStatus;
+  id: number;
+  name: string;
+  location: string;
+  capacity: number;
+  opStart: string;
+  opEnd: string;
+  useStart: string;
+  useEnd: string;
   equipment: string[];
-  days: string; 
-  opStart: string; opEnd: string;
-  useStart: string; useEnd: string;
+  statusOverride?: string | null;
+  created_at?: string;
+  // UI-only
+  days?: string;
   currentBorrower?: Peminjam;
 }
 
 export default function KelolaLabFinal() {
+  const router = useRouter();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeGedung, setActiveGedung] = useState("Gedung Delta");
   const [showOnlyUsed, setShowOnlyUsed] = useState(false);
-  
-  const [labs, setLabs] = useState<Lab[]>([
-    {
-      id: "1", name: "Lab Jaringan 01", location: "Gedung Delta",
-      capacity: 25, equipment: ["PC Intel Core i5", "Router Cisco"],
-      days: "Senin, Selasa, Rabu, Kamis, Jumat", 
-      opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00",
-      currentBorrower: { nama: "Budi Santoso", nim: "J030321101", prodi: "Informatika", kelas: "INF B P1", jamMasuk: "08:30" }
-    }
-  ]);
+
+  const [labs, setLabs] = useState<Lab[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [laporanBlokir, setLaporanBlokir] = useState<LaporanBlokir[]>([]);
   const [selectedLab, setSelectedLab] = useState<Lab | null>(null);
   const [isModalFormOpen, setIsModalFormOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isBlokirModalOpen, setIsBlokirModalOpen] = useState(false); 
+  const [isBlokirModalOpen, setIsBlokirModalOpen] = useState(false);
   const [labToEdit, setLabToEdit] = useState<Lab | null>(null);
-  const [labToDelete, setLabToDelete] = useState<string | null>(null);
+  const [labToDelete, setLabToDelete] = useState<number | null>(null);
 
   const [modalType, setModalType] = useState<"detail" | "checkout">("detail");
   const [checklist, setChecklist] = useState({ clean: false, gear: false, noDamage: false });
 
   const [formData, setFormData] = useState({
-    name: "", location: "Gedung Delta", capacity: 0, days: "Senin", 
+    name: "", location: "Gedung Delta", capacity: 0, days: "Senin",
     opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00"
   });
   const [tempEquipment, setTempEquipment] = useState<string[]>([]);
   const [newItemName, setNewItemName] = useState("");
+
+  // Fetch lab data from backend
+  useEffect(() => {
+    const loadLabs = async () => {
+      const token = localStorage.getItem("admin_jwt_token");
+      if (!token) {
+        router.replace("/auth/login");
+        return;
+      }
+
+      setIsLoading(true);
+      setFetchError(null);
+
+      try {
+        const labsFromApi = await getLabs(token);
+        // Map API shape into UI shape; keep existing frontend-only fields as default
+        setLabs(
+          labsFromApi.map((lab) => ({
+            ...lab,
+            days: "Senin, Selasa, Rabu, Kamis, Jumat",
+            currentBorrower: undefined,
+          })),
+        );
+        if (labsFromApi.length > 0) {
+          setActiveGedung(labsFromApi[0].location);
+        }
+      } catch (err) {
+        const apiErr = err as ApiError;
+        setFetchError(apiErr.detail || "Gagal memuat data laboratorium.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadLabs();
+  }, [router]);
 
   // Logic untuk mendapatkan nama bulan saat ini
   const currentMonthName = useMemo(() => {
@@ -94,12 +136,91 @@ export default function KelolaLabFinal() {
     return processedLabs.filter(l => l.location === activeGedung);
   }, [processedLabs, activeGedung, showOnlyUsed]);
 
-  const handleSaveLab = (e: React.FormEvent) => {
+  const handleSaveLab = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newLab = { ...formData, id: labToEdit ? labToEdit.id : Date.now().toString(), equipment: tempEquipment };
-    if (labToEdit) setLabs(labs.map(l => l.id === labToEdit.id ? newLab : l));
-    else setLabs([...labs, newLab]);
-    setIsModalFormOpen(false);
+
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    const payload = {
+      name: formData.name,
+      location: formData.location,
+      capacity: formData.capacity,
+      opStart: formData.opStart,
+      opEnd: formData.opEnd,
+      useStart: formData.useStart,
+      useEnd: formData.useEnd,
+      equipment: tempEquipment,
+      statusOverride: labToEdit?.statusOverride || undefined,
+    };
+
+    try {
+      if (labToEdit) {
+        const updated = await updateLab(labToEdit.id, payload, token);
+        setLabs((prev) => prev.map((l) => (l.id === updated.id ? { ...l, ...updated } : l)));
+        Swal.fire({ icon: "success", title: "Berhasil", text: "Data lab berhasil diperbarui!" });
+      } else {
+        const created = await createLab(payload, token);
+        setLabs((prev) => [...prev, { ...created, days: "Senin, Selasa, Rabu, Kamis, Jumat" }]);
+        Swal.fire({ icon: "success", title: "Berhasil", text: "Lab baru berhasil ditambahkan!" });
+      }
+      setIsModalFormOpen(false);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      Swal.fire({ icon: "error", title: "Oops...", text: apiErr.detail || "Gagal menyimpan data lab." });
+    }
+  };
+
+  const handleToggleMaintenance = async (lab: Lab) => {
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    const newStatus = lab.statusOverride === "Maintenance" ? undefined : "Maintenance";
+    try {
+      const updated = await updateLab(lab.id, {
+        name: lab.name,
+        location: lab.location,
+        capacity: lab.capacity,
+        opStart: lab.opStart,
+        opEnd: lab.opEnd,
+        useStart: lab.useStart,
+        useEnd: lab.useEnd,
+        equipment: lab.equipment,
+        statusOverride: newStatus,
+      }, token);
+      setLabs((prev) => prev.map((l) => (l.id === updated.id ? { ...l, ...updated } : l)));
+      Swal.fire({ icon: "success", title: "Berhasil", text: "Status maintenance lab berhasil diubah!", timer: 1500 });
+    } catch (err) {
+      const apiErr = err as ApiError;
+      Swal.fire({ icon: "error", title: "Oops...", text: apiErr.detail || "Gagal mengubah status lab." });
+    }
+  };
+
+  const handleDeleteLab = async () => {
+    if (!labToDelete) return;
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    try {
+      await deleteLab(labToDelete!, token);
+      setLabs((prev) => prev.filter((l) => l.id !== labToDelete));
+      Swal.fire({ icon: "success", title: "Terhapus!", text: "Data lab telah dihapus.", timer: 1500 });
+    } catch (err) {
+      const apiErr = err as ApiError;
+      Swal.fire({ icon: "error", title: "Oops...", text: apiErr.detail || "Gagal menghapus lab." });
+    } finally {
+      setIsDeleteModalOpen(false);
+      setLabToDelete(null);
+    }
   };
 
   const handleAddEquipment = () => {
@@ -123,9 +244,9 @@ export default function KelolaLabFinal() {
         alasan: "Melanggar Prosedur Checklist",
         tanggal: new Date().toLocaleString('id-ID')
       }]);
-      alert(`⚠️ KTM ${selectedLab.currentBorrower.nim} DIBLOKIR!`);
+      Swal.fire({ icon: "warning", title: "Perhatian", text: `KTM ${selectedLab.currentBorrower.nim} DIBLOKIR!` });
     } else {
-      alert(`✅ Checkout ${selectedLab.name} Berhasil.`);
+      Swal.fire({ icon: "success", title: "Checkout Berhasil", text: `Checkout ${selectedLab.name} Berhasil.` });
     }
     setLabs(prev => prev.map(l => l.id === selectedLab.id ? { ...l, currentBorrower: undefined } : l));
     setSelectedLab(null);
@@ -133,6 +254,16 @@ export default function KelolaLabFinal() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-800 leading-tight">
+      {fetchError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 text-sm text-center">
+          {fetchError}
+        </div>
+      )}
+      {isLoading && (
+        <div className="bg-white border-b border-slate-200 px-6 py-4 text-sm text-slate-600 text-center">
+          Memuat data laboratorium...
+        </div>
+      )}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -143,15 +274,15 @@ export default function KelolaLabFinal() {
             </div>
           </div>
           <div className="flex gap-3">
-             {laporanBlokir.length > 0 && (
-                <button 
-                  onClick={() => setIsBlokirModalOpen(true)}
-                  className="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-xl border border-red-100 text-red-600 text-xs font-bold animate-pulse hover:bg-red-100 transition-colors"
-                >
-                  <ShieldExclamationIcon className="h-4 w-4" /> {laporanBlokir.length} KTM Terblokir
-                </button>
-             )}
-            <button onClick={() => { setLabToEdit(null); setFormData({name:"", location: activeGedung, capacity: 0, days:"Senin", opStart:"07:00", opEnd:"18:00", useStart:"08:00", useEnd:"11:00"}); setTempEquipment([]); setIsModalFormOpen(true); }} className="bg-[#263C92] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold text-sm hover:opacity-90">
+            {laporanBlokir.length > 0 && (
+              <button
+                onClick={() => setIsBlokirModalOpen(true)}
+                className="flex items-center gap-2 bg-red-50 px-4 py-2 rounded-xl border border-red-100 text-red-600 text-xs font-bold animate-pulse hover:bg-red-100 transition-colors"
+              >
+                <ShieldExclamationIcon className="h-4 w-4" /> {laporanBlokir.length} KTM Terblokir
+              </button>
+            )}
+            <button onClick={() => { setLabToEdit(null); setFormData({ name: "", location: activeGedung, capacity: 0, days: "Senin", opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00" }); setTempEquipment([]); setIsModalFormOpen(true); }} className="bg-[#263C92] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold text-sm hover:opacity-90">
               <PlusIcon className="h-5 w-5 stroke-[2]" /> Input Lab
             </button>
           </div>
@@ -210,11 +341,11 @@ export default function KelolaLabFinal() {
               </div>
 
               <div className="flex gap-2 mt-auto pt-4 border-t border-slate-50">
-                <button onClick={() => setLabs(labs.map(l => l.id === lab.id ? {...l, statusOverride: l.statusOverride === 'Maintenance' ? undefined : 'Maintenance'} : l))} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase border flex items-center justify-center gap-2 ${lab.status === 'Maintenance' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-400 hover:text-red-500'}`}>
+                <button onClick={() => handleToggleMaintenance(lab)} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase border flex items-center justify-center gap-2 ${lab.status === 'Maintenance' ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white text-slate-400 hover:text-red-500'}`}>
                   <WrenchScrewdriverIcon className="h-3.5 w-3.5" /> Maintenance
                 </button>
                 <button onClick={() => { setSelectedLab(lab); setModalType("detail"); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-200">Detail</button>
-                <button onClick={() => { setLabToEdit(lab); setFormData({...lab}); setTempEquipment(lab.equipment); setIsModalFormOpen(true); }} className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-[#263C92]"><PencilSquareIcon className="h-5 w-5" /></button>
+                <button onClick={() => { setLabToEdit(lab); setFormData({ ...lab, days: lab.days || "Senin", useStart: lab.useStart || "08:00", useEnd: lab.useEnd || "11:00" }); setTempEquipment(lab.equipment); setIsModalFormOpen(true); }} className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-[#263C92]"><PencilSquareIcon className="h-5 w-5" /></button>
                 <button onClick={() => { setLabToDelete(lab.id); setIsDeleteModalOpen(true); }} className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-red-500"><TrashIcon className="h-5 w-5" /></button>
               </div>
             </div>
@@ -233,18 +364,18 @@ export default function KelolaLabFinal() {
             <form onSubmit={handleSaveLab} className="p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Nama Lab</label>
-                <input type="text" required className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none focus:border-[#263C92]" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                <input type="text" required className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none focus:border-[#263C92]" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Gedung</label>
-                  <input 
+                  <input
                     list="gedung-history"
-                    className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none focus:border-[#263C92]" 
+                    className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none focus:border-[#263C92]"
                     placeholder="Ketik/Pilih Gedung"
-                    value={formData.location} 
-                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     required
                   />
                   <datalist id="gedung-history">
@@ -255,41 +386,41 @@ export default function KelolaLabFinal() {
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Kapasitas PC</label>
-                  <input type="number" className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none" value={formData.capacity} onChange={(e) => setFormData({...formData, capacity: parseInt(e.target.value)})} />
+                  <input type="number" className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Jam Buka</label>
-                  <input type="time" className="w-full p-3 bg-slate-50 border rounded-xl mt-1" value={formData.opStart} onChange={(e) => setFormData({...formData, opStart: e.target.value})} />
+                  <input type="time" className="w-full p-3 bg-slate-50 border rounded-xl mt-1" value={formData.opStart} onChange={(e) => setFormData({ ...formData, opStart: e.target.value })} />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Jam Tutup</label>
-                  <input type="time" className="w-full p-3 bg-slate-50 border rounded-xl mt-1" value={formData.opEnd} onChange={(e) => setFormData({...formData, opEnd: e.target.value})} />
+                  <input type="time" className="w-full p-3 bg-slate-50 border rounded-xl mt-1" value={formData.opEnd} onChange={(e) => setFormData({ ...formData, opEnd: e.target.value })} />
                 </div>
               </div>
 
               <div className="pt-2 border-t border-slate-100">
                 <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Inventaris Alat</label>
                 <div className="flex gap-2 mt-1 mb-3">
-                  <input 
-                    type="text" 
-                    placeholder="Contoh: Switch HP, PC Core i7..." 
+                  <input
+                    type="text"
+                    placeholder="Contoh: Switch HP, PC Core i7..."
                     className="flex-1 p-3 bg-slate-50 border rounded-xl outline-none text-sm"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
-                    onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); handleAddEquipment(); }}}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEquipment(); } }}
                   />
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={handleAddEquipment}
                     className="bg-slate-100 text-[#263C92] px-4 rounded-xl hover:bg-[#263C92] hover:text-white transition-colors"
                   >
                     <PlusIcon className="h-6 w-6 stroke-[3]" />
                   </button>
                 </div>
-                
+
                 <div className="flex flex-wrap gap-2">
                   {tempEquipment.map((item, index) => (
                     <div key={index} className="flex items-center gap-2 bg-blue-50 text-[#263C92] px-3 py-1.5 rounded-lg border border-blue-100 text-xs font-bold">
@@ -356,13 +487,13 @@ export default function KelolaLabFinal() {
                       { key: 'noDamage', label: 'Barang Lengkap' }
                     ].map((item) => (
                       <label key={item.key} className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-xl cursor-pointer border border-slate-100">
-                        <input type="checkbox" className="w-4 h-4 text-[#E40082]" checked={(checklist as any)[item.key]} onChange={(e) => setChecklist({...checklist, [item.key]: e.target.checked})} />
+                        <input type="checkbox" className="w-4 h-4 text-[#E40082]" checked={(checklist as any)[item.key]} onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })} />
                         <span className="text-sm font-medium text-slate-700">{item.label}</span>
                       </label>
                     ))}
                   </div>
                   <div className="flex flex-col gap-2">
-                    <button 
+                    <button
                       onClick={() => handleAction(checklist.clean && checklist.gear && checklist.noDamage ? "normal" : "block")}
                       className={`w-full py-3.5 rounded-xl text-white font-bold text-xs uppercase ${checklist.clean && checklist.gear && checklist.noDamage ? 'bg-[#263C92]' : 'bg-red-600'}`}
                     >
@@ -388,7 +519,7 @@ export default function KelolaLabFinal() {
             <p className="text-slate-500 text-sm mb-6">Data ini akan dihapus permanen dari sistem.</p>
             <div className="flex gap-3">
               <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-3 text-slate-400 font-bold text-xs">BATAL</button>
-              <button onClick={() => { setLabs(labs.filter(l => l.id !== labToDelete)); setIsDeleteModalOpen(false); }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase">HAPUS</button>
+              <button onClick={handleDeleteLab} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs uppercase">HAPUS</button>
             </div>
           </div>
         </div>
@@ -410,11 +541,11 @@ export default function KelolaLabFinal() {
                 <XMarkIcon className="h-6 w-6" />
               </button>
             </div>
-            
+
             <div className="p-4 overflow-y-auto">
               <div className="flex justify-between items-center mb-4 px-2">
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Menampilkan 10 Daftar Terbaru</span>
-                <button 
+                <button
                   onClick={() => alert('Membuka Halaman Laporan Lengkap...')}
                   className="flex items-center gap-1.5 text-[#263C92] text-[10px] font-bold uppercase hover:underline"
                 >
@@ -460,10 +591,10 @@ export default function KelolaLabFinal() {
                 </div>
               )}
             </div>
-            
+
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
-               <p className="text-[10px] text-slate-400 font-medium italic">* Data otomatis terarsip setiap pergantian bulan.</p>
-              <button 
+              <p className="text-[10px] text-slate-400 font-medium italic">* Data otomatis terarsip setiap pergantian bulan.</p>
+              <button
                 onClick={() => setIsBlokirModalOpen(false)}
                 className="px-6 py-2 bg-slate-200 text-slate-600 rounded-xl font-bold text-xs uppercase hover:bg-slate-300"
               >

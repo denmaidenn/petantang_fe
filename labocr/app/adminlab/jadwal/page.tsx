@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   ClockIcon,
   PlusIcon,
@@ -13,37 +14,19 @@ import {
   MapPinIcon,
   AcademicCapIcon,
 } from "@heroicons/react/24/outline";
+import {
+  getJadwal,
+  createJadwal,
+  updateJadwal,
+  deleteJadwal,
+  archiveJadwal,
+  type Schedule,
+  type ApiError,
+} from "@/lib/api";
 
-const INITIAL_DATA = [
-  {
-    id: 1,
-    mataKuliah: "Pemrograman Web Lanjut",
-    kelas: "INF-P1",
-    prodi: "Informatika",
-    lab: "Lab 01",
-    gedung: "Delta",
-    hari: "Senin",
-    jamMulai: "08:00",
-    jamSelesai: "10:30",
-    tipeSemester: "Genap",
-    tahunAjaran: "2025/2026",
-    isArchived: false,
-  },
-  {
-    id: 2,
-    mataKuliah: "Jaringan Komputer",
-    kelas: "TEK-P2",
-    prodi: "Teknik Komputer",
-    lab: "Lab Jaringan",
-    gedung: "Epsilon",
-    hari: "Rabu",
-    jamMulai: "13:00",
-    jamSelesai: "15:30",
-    tipeSemester: "Genap",
-    tahunAjaran: "2025/2026",
-    isArchived: false,
-  },
-];
+import Swal from "sweetalert2";
+
+const INITIAL_DATA: Schedule[] = [];
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const PRODI_LIST = [
@@ -55,9 +38,37 @@ const PRODI_LIST = [
 ];
 
 export default function JadwalAdminCalendarPage() {
-  const [jadwal, setJadwal] = useState(INITIAL_DATA);
+  const router = useRouter();
+  const [jadwal, setJadwal] = useState<Schedule[]>(INITIAL_DATA);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("Semua Prodi");
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const loadJadwal = async () => {
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
+    }
+
+    setIsLoading(true);
+    setFetchError(null);
+
+    try {
+      const data = await getJadwal(token);
+      setJadwal(data);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      setFetchError(apiErr.detail || "Gagal memuat jadwal.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadJadwal();
+  }, [router]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -99,23 +110,30 @@ export default function JadwalAdminCalendarPage() {
   }, [jadwal, searchQuery, filterProdi]);
 
   // Handlers
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentData) {
-      setJadwal(
-        jadwal.map((item) =>
-          item.id === currentData.id
-            ? { ...formData, id: item.id, isArchived: false }
-            : item,
-        ),
-      );
-    } else {
-      setJadwal([
-        ...jadwal,
-        { ...formData, id: Date.now(), isArchived: false },
-      ]);
+
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) {
+      router.replace("/auth/login");
+      return;
     }
-    setIsModalOpen(false);
+
+    try {
+      if (currentData) {
+        const updated = await updateJadwal(currentData.id, formData, token);
+        setJadwal((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        Swal.fire({ icon: "success", title: "Berhasil", text: "Jadwal berhasil diperbarui!", timer: 1500 });
+      } else {
+        const created = await createJadwal(formData, token);
+        setJadwal((prev) => [...prev, created]);
+        Swal.fire({ icon: "success", title: "Berhasil", text: "Jadwal baru berhasil ditambahkan!", timer: 1500 });
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      const apiErr = err as ApiError;
+      Swal.fire({ icon: "error", title: "Oops...", text: apiErr.detail || "Gagal menyimpan jadwal." });
+    }
   };
 
   const openEditModal = (item: any) => {
@@ -180,6 +198,22 @@ export default function JadwalAdminCalendarPage() {
         </div>
       </header>
 
+      {fetchError && (
+        <div className="max-w-7xl mx-auto px-6 mb-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg">
+            {fetchError}
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="max-w-7xl mx-auto px-6 mb-4">
+          <div className="bg-white border border-slate-200 text-slate-600 px-6 py-4 rounded-lg">
+            Memuat jadwal...
+          </div>
+        </div>
+      )}
+
       <main className="px-6 max-w-[1600px] mx-auto">
         {/* SEARCH & FILTER */}
         <div className="mb-6 flex flex-wrap gap-4 items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -219,7 +253,7 @@ export default function JadwalAdminCalendarPage() {
 
               <div className="flex-1 bg-white border-x border-b border-slate-200 rounded-b-xl p-3 space-y-3 shadow-sm overflow-y-auto">
                 {filteredJadwal.filter((item) => item.hari === hari).length >
-                0 ? (
+                  0 ? (
                   filteredJadwal
                     .filter((item) => item.hari === hari)
                     .map((item) => (
@@ -443,9 +477,25 @@ export default function JadwalAdminCalendarPage() {
                 Batal
               </button>
               <button
-                onClick={() => {
-                  setJadwal(jadwal.filter((j) => j.id !== idToDelete));
-                  setIsDeleteModalOpen(false);
+                onClick={async () => {
+                  const token = localStorage.getItem("admin_jwt_token");
+                  if (!token) {
+                    router.replace("/auth/login");
+                    return;
+                  }
+
+                  try {
+                    if (idToDelete !== null) {
+                      await deleteJadwal(idToDelete, token);
+                      setJadwal((prev) => prev.filter((j) => j.id !== idToDelete));
+                      Swal.fire({ icon: "success", title: "Terhapus!", text: "Jadwal telah dihapus.", timer: 1500 });
+                    }
+                  } catch (err) {
+                    const apiErr = err as ApiError;
+                    Swal.fire({ icon: "error", title: "Oops...", text: apiErr.detail || "Gagal menghapus jadwal." });
+                  } finally {
+                    setIsDeleteModalOpen(false);
+                  }
                 }}
                 className="flex-1 py-2 bg-red-600 text-white rounded-lg text-[10px] font-bold uppercase"
               >
@@ -477,9 +527,23 @@ export default function JadwalAdminCalendarPage() {
                 Batal
               </button>
               <button
-                onClick={() => {
-                  setJadwal(jadwal.map((j) => ({ ...j, isArchived: true })));
-                  setIsArchiveModalOpen(false);
+                onClick={async () => {
+                  const token = localStorage.getItem("admin_jwt_token");
+                  if (!token) {
+                    router.replace("/auth/login");
+                    return;
+                  }
+
+                  try {
+                    await archiveJadwal(token);
+                    await loadJadwal();
+                    Swal.fire({ icon: "success", title: "Semester Direset!", text: "Semua jadwal telah diarsipkan.", timer: 1500 });
+                  } catch (err) {
+                    const apiErr = err as ApiError;
+                    Swal.fire({ icon: "error", title: "Oops...", text: apiErr.detail || "Gagal mengarsipkan jadwal." });
+                  } finally {
+                    setIsArchiveModalOpen(false);
+                  }
                 }}
                 className="flex-1 py-2 bg-amber-600 text-white rounded-lg text-[10px] font-bold uppercase"
               >

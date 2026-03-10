@@ -12,6 +12,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { adminLogin, type ApiError } from "@/lib/api";
 
+import Swal from "sweetalert2";
+
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -26,6 +28,15 @@ export default function LoginPage() {
     try {
       const data = await adminLogin(formData.username, formData.password);
       localStorage.setItem("admin_jwt_token", data.access_token);
+
+      await Swal.fire({
+        icon: "success",
+        title: "Login Berhasil",
+        text: "Selamat datang di Dashboard Admin",
+        timer: 1500,
+        showConfirmButton: false
+      });
+
       router.push("/adminlab/dashboard");
     } catch (error) {
       const apiErr = error as ApiError;
