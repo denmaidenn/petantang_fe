@@ -39,3 +39,8 @@ body {
 .animate-slideTextReveal {
   animation: slideTextReveal 0.8s ease-out forwards;
 }
+
+/* Fix SweetAlert z-index issues when overlapping with high z-index React modale */
+.swal2-container {
+  z-index: 20000 !important;
+}

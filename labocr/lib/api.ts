@@ -492,8 +492,10 @@ export function getErrorMessage(error: ApiError): string {
       return "Wajah tidak cocok dengan data yang terdaftar.";
     case 404:
       return "Data mahasiswa tidak ditemukan di sistem.";
+    case 406:
+      return "Akses Ditolak: Keamanan terpicu. Wajah terdeteksi sebagai foto/layar.";
     case 409:
-      return "Wajah sudah terdaftar sebelumnya / sedang aktif.";
+      return "Sesi bentrok / Wajah sedang aktif.";
     case 413:
       return "Ukuran gambar terlalu besar (maks 10MB).";
     case 422:
