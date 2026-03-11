@@ -14,7 +14,7 @@ export interface ScanResult {
   nim_qr: string | null;
   db_verified: boolean;
   db_nama: string | null;
-  action_required: "face_enroll" | "face_verify" | null;
+  action_required: "face_enroll" | "face_verify" | "already_checked_in" | null;
   detections: Array<{
     class_name: string;
     confidence: number;

@@ -35,7 +35,7 @@ interface ScanData {
   nim: string;
   nama: string;
   db_nama: string;
-  action_required: "face_enroll" | "face_verify" | null;
+  action_required: "face_enroll" | "face_verify" | "already_checked_in" | null;
 }
 
 interface CheckinData {
@@ -57,6 +57,8 @@ const ScanLabPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [scanData, setScanData] = useState<ScanData | null>(null);
   const [checkinData, setCheckinData] = useState<CheckinData | null>(null);
+
+  // ─── WebSocket States ────────────────────────────────
 
   const steps = [
     { id: 1, title: "KTM", icon: <QrCode className="w-3.5 h-3.5" /> },
@@ -101,7 +103,6 @@ const ScanLabPage = () => {
       stream?.getTracks().forEach((track) => track.stop());
     };
   }, [currentStep, facingMode]);
-
   // ─── API: Scan KTM ──────────────────────────────────
   const handleScanKTM = async () => {
     if (!videoRef.current) return;
@@ -257,7 +258,11 @@ const ScanLabPage = () => {
                 {/* Camera Preview */}
                 <div className="relative w-full max-w-[320px] aspect-[1.58/1] shadow-2xl ring-8 ring-white bg-slate-900 overflow-hidden rounded-[32px] transition-all duration-500">
                   <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`} />
-                  <div className="absolute inset-0 flex items-center justify-center p-8">
+
+
+
+                  {/* Scanning Animation Guide */}
+                  <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none z-20">
                     <div className="w-full h-full border-2 border-dashed border-white/30 relative rounded-2xl">
                       {!isLoading && (
                         <motion.div animate={{ top: ["0%", "100%", "0%"] }} transition={{ duration: 3, repeat: Infinity, ease: "linear" }} className="absolute left-0 right-0 h-0.5 bg-emerald-400 shadow-[0_0_15px_#10b981]" />
@@ -441,8 +446,8 @@ const ScanLabPage = () => {
             )}
           </AnimatePresence>
         </div>
-      </main >
-    </div >
+      </main>
+    </div>
   );
 };
 
