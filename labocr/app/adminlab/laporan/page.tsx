@@ -562,7 +562,7 @@ export default function LaporanLaboratorium() {
                     Pelanggaran
                   </p>
                   <p className="text-sm font-bold text-red-900 italic leading-relaxed">
-                    "{selectedStudent.kesalahan}"
+                    &quot;{selectedStudent.kesalahan}&quot;
                   </p>
                 </div>
               </div>

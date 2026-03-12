@@ -78,7 +78,7 @@ export default function JadwalAdminCalendarPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
-  const [currentData, setCurrentData] = useState<any>(null);
+  const [currentData, setCurrentData] = useState<Schedule | null>(null);
   const [idToDelete, setIdToDelete] = useState<number | null>(null);
 
   const [formData, setFormData] = useState({
@@ -92,7 +92,8 @@ export default function JadwalAdminCalendarPage() {
     jamSelesai: "10:00",
     tipeSemester: "Genap",
     tahunAjaran: "2025/2026",
-  });
+    status: "tersedia",
+  } as Omit<Schedule, "id" | "isArchived" | "createdAt">);
   const [isCustomLab, setIsCustomLab] = useState(false);
   const [customLab, setCustomLab] = useState("");
   const [isCustomGedung, setIsCustomGedung] = useState(false);
@@ -179,11 +180,11 @@ export default function JadwalAdminCalendarPage() {
 
     try {
       if (currentData) {
-        const updated = await updateJadwal(currentData.id, formData, token);
+        const updated = await updateJadwal(currentData.id, formData as Omit<Schedule, "id" | "isArchived" | "createdAt">, token);
         setJadwal((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         Swal.fire({ icon: "success", title: "Berhasil", text: "Jadwal berhasil diperbarui!", timer: 1500 });
       } else {
-        const created = await createJadwal(formData, token);
+        const created = await createJadwal(formData as Omit<Schedule, "id" | "isArchived" | "createdAt">, token);
         setJadwal((prev) => [...prev, created]);
         Swal.fire({ icon: "success", title: "Berhasil", text: "Jadwal baru berhasil ditambahkan!", timer: 1500 });
       }
@@ -194,13 +195,15 @@ export default function JadwalAdminCalendarPage() {
     }
   };
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (item: Schedule) => {
     setCurrentData(item);
-    setFormData(item);
+    // Explicitly destructure to omit createdAt and id for the formData state type safety
+    const { id, isArchived, createdAt, ...restItem } = item;
+    setFormData(restItem as Omit<Schedule, "id" | "isArchived" | "createdAt">);
 
-    const isCustomGedungValue = item.gedung && !gedungOptions.includes(item.gedung);
+    const isCustomGedungValue = Boolean(item.gedung && !gedungOptions.includes(item.gedung));
     const labCandidates = computeLabOptions(item.gedung, isCustomGedungValue);
-    const isCustomLabValue = item.lab && !labCandidates.includes(item.lab);
+    const isCustomLabValue = Boolean(item.lab && !labCandidates.includes(item.lab));
 
     setIsCustomGedung(isCustomGedungValue);
     setCustomGedung(isCustomGedungValue ? item.gedung : "");
@@ -224,6 +227,7 @@ export default function JadwalAdminCalendarPage() {
       jamSelesai: "10:00",
       tipeSemester: "Genap",
       tahunAjaran: "2025/2026",
+      status: "tersedia",
     });
     setIsCustomLab(false);
     setCustomLab("");

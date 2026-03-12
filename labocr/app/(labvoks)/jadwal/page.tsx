@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
@@ -23,11 +23,16 @@ import {
   Monitor,
   Coffee,
 } from "lucide-react";
+import { getPublicJadwal, Schedule, getPublicStatus, LabStatusResponse } from "@/lib/api";
 
 export default function MonitoringLabVokasi() {
   const [selectedGedung, setSelectedGedung] = useState("Semua Gedung");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [activeModal, setActiveModal] = useState<any>(null);
+  const [activeModal, setActiveModal] = useState<null | (Schedule & { status: string; waktu: string; peminjam: string })>(null);
+  const [jadwal, setJadwal] = useState<Schedule[]>([]);
+  const [labStatus, setLabStatus] = useState<LabStatusResponse | null>(null);
+  const [loadingJadwal, setLoadingJadwal] = useState(true);
+  const [jadwalError, setJadwalError] = useState<string | null>(null);
 
   // --- LOGIKA TANGGAL ---
   const getWeekDays = (date: Date) => {
@@ -53,6 +58,7 @@ export default function MonitoringLabVokasi() {
           month: "short",
         }),
         isToday: isToday,
+        date: nextDay,
       });
     }
     return days;
@@ -77,141 +83,128 @@ export default function MonitoringLabVokasi() {
   });
   const rangeLabel = `${hariKerja[0].tgl.split(" ")[0]} - ${hariKerja[5].tgl} ${currentMonthYear}`;
 
-  const jamKuliah = [
-    { start: "07:00", end: "09:00" },
-    { start: "09:00", end: "11:00" },
-    { start: "11:00", end: "13:00" },
-    { start: "13:00", end: "15:00" },
-    { start: "15:00", end: "17:00" },
-    { start: "17:00", end: "18:00" },
-  ];
+  const jamKuliah = useMemo(
+    () => [
+      { start: "07:00", end: "09:00" },
+      { start: "09:00", end: "11:00" },
+      { start: "11:00", end: "13:00" },
+      { start: "13:00", end: "15:00" },
+      { start: "15:00", end: "17:00" },
+      { start: "17:00", end: "18:00" },
+      { start: "18:00", end: "20:00" },
+    ],
+    []
+  );
 
-  // --- MOCK DATA ---
-  const getDemoData = (row: number, col: number) => {
-    const data: any = {
-      "0-0": {
-        status: "digunakan",
-        lab: "Lab Multimedia 1",
-        gedung: "Gedung CA",
-        prodi: "Teknologi Rekayasa Perangkat Lunak",
-        peminjam: "Raffa Danendra",
-        durasi: 2,
-      },
-      "2-0": {
-        status: "tersedia",
-        lab: "Lab Pemrograman 2",
-        gedung: "Gedung CA",
-        prodi: "Sistem Informasi",
-        peminjam: "-",
-        durasi: 2,
-      },
-      "4-0": {
-        status: "menunggu",
-        lab: "Lab Jaringan",
-        gedung: "Gedung CB",
-        prodi: "Komunikasi Digital dan Media",
-        peminjam: "Zaldi",
-        durasi: 1,
-      },
-      "0-1": {
-        status: "tersedia",
-        lab: "Lab Hardware",
-        gedung: "Gedung CB",
-        prodi: "Teknologi Rekayasa Komputer",
-        peminjam: "-",
-        durasi: 1,
-      },
-      "1-1": {
-        status: "digunakan",
-        lab: "Lab Desain Kreatif",
-        gedung: "Gedung CA",
-        prodi: "Komunikasi Digital dan Media",
-        peminjam: "Raffa Lagi",
-        durasi: 3,
-      },
-      "4-1": {
-        status: "maintenance",
-        lab: "Lab Multimedia 2",
-        gedung: "Gedung CA",
-        prodi: "Fasilitas SV",
-        peminjam: "Tim IT SV",
-        durasi: 2,
-      },
-      "0-2": {
-        status: "digunakan",
-        lab: "Lab Jaringan",
-        gedung: "Gedung CB",
-        prodi: "Teknologi Digital",
-        peminjam: "Bpk. Lukman",
-        durasi: 2,
-      },
-      "2-2": {
-        status: "tersedia",
-        lab: "Lab Robotik",
-        gedung: "Gedung CB",
-        prodi: "Sistem Informasi",
-        peminjam: "-",
-        durasi: 2,
-      },
-      "5-2": {
-        status: "menunggu",
-        lab: "Lab Software",
-        gedung: "Gedung CA",
-        prodi: "Teknologi Digital",
-        peminjam: "Ibu Dian",
-        durasi: 1,
-      },
-      "0-3": {
-        status: "maintenance",
-        lab: "Lab Hardware",
-        gedung: "Gedung CB",
-        prodi: "Sarana Prasarana",
-        peminjam: "Teknisi",
-        durasi: 1,
-      },
-      "1-3": {
-        status: "digunakan",
-        lab: "Lab Pemrograman 1",
-        gedung: "Gedung CA",
-        prodi: "Sistem Informasi",
-        peminjam: "Bpk. Heru",
-        durasi: 4,
-      },
-      "0-4": {
-        status: "menunggu",
-        lab: "Lab Desain",
-        gedung: "Gedung CA",
-        prodi: "Komunikasi",
-        peminjam: "Ibu Maya",
-        durasi: 3,
-      },
-      "3-4": {
-        status: "digunakan",
-        lab: "Lab Jaringan",
-        gedung: "Gedung CB",
-        prodi: "Teknologi Digital",
-        peminjam: "Bpk. Lukman",
-        durasi: 2,
-      },
-      "0-5": {
-        status: "tersedia",
-        lab: "Lab Open Source",
-        gedung: "Gedung CA",
-        prodi: "Teknologi Digital",
-        peminjam: "-",
-        durasi: 2,
-      },
-      "2-5": {
-        status: "maintenance",
-        lab: "Lab Multimedia 1",
-        gedung: "Gedung CA",
-        prodi: "Maintenance Rutin",
-        peminjam: "Laboran",
-        durasi: 1,
-      },
+  // --- BACKEND JADWAL ---
+  useEffect(() => {
+    let mounted = true;
+
+    Promise.all([getPublicJadwal(), getPublicStatus()])
+      .then(([jadwalData, statusData]) => {
+        if (!mounted) return;
+        setJadwal(jadwalData);
+        setLabStatus(statusData);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        setJadwalError(err?.message || "Gagal memuat jadwal");
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoadingJadwal(false);
+      });
+
+    return () => {
+      mounted = false;
     };
-    return data[`${row}-${col}`];
+  }, []);
+
+  const normalizeTime = (time: string) => (time ? time.slice(0, 5) : "");
+
+  const timeToMin = (t: string) => {
+    if (!t) return 0;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
   };
+
+  const getScheduleStatus = (s: Schedule, colDate?: Date): string => {
+    // 1. Dapatkan status dasar dari Database jadwal
+    let baseStatus = s.status || "tersedia";
+
+    // 2. Tindih dengan status Live Check-in face-recognition bila relevan
+    const now = new Date();
+    const isLabUsed = labStatus?.peminjaman?.some(p => p.lab === s.lab && p.status === "aktif");
+    const isLabWaiting = labStatus?.peminjaman_pending?.some(p => p.lab === s.lab && p.status === "menunggu");
+
+    const isSameDay = colDate ? (colDate.toDateString() === now.toDateString()) : true;
+
+    if (isSameDay) {
+      if (isLabUsed) return "digunakan";
+      if (isLabWaiting) return "menunggu";
+    }
+
+    return baseStatus as string;
+  };
+
+  const uniqueGedungs = useMemo(() => Array.from(new Set(jadwal.map(j => j.gedung))).filter(Boolean).sort(), [jadwal]);
+
+  const scheduleMap = useMemo(() => {
+    // Array to support multiple overlapping labs per timeslot per day
+    const map: Record<string, { item: Schedule; rowSpan: number }[]> = {};
+
+    const filtered = jadwal.filter(
+      (s) => selectedGedung === "Semua Gedung" || s.gedung === selectedGedung
+    );
+
+    const dayIndex = (hari: string) => Math.max(0, hariKerja.findIndex((d) => d.hari.toLowerCase() === hari.toLowerCase()));
+
+    const slotStartIndex = (time: string) => {
+      const tMin = timeToMin(normalizeTime(time));
+      return jamKuliah.findIndex(slot => timeToMin(slot.end) > tMin);
+    };
+    const slotEndIndex = (time: string) => {
+      const tMin = timeToMin(normalizeTime(time));
+      let idx = -1;
+      for (let i = 0; i < jamKuliah.length; i++) {
+        if (timeToMin(jamKuliah[i].start) < tMin) idx = i;
+      }
+      return idx;
+    };
+
+    filtered.forEach((s) => {
+      const col = dayIndex(s.hari);
+      const rowStart = slotStartIndex(s.jamMulai);
+      const rowEnd = slotEndIndex(s.jamSelesai);
+
+      if (col === -1 || rowStart === -1 || rowEnd === -1) return;
+
+      const rowSpan = Math.max(1, rowEnd - rowStart + 1);
+
+      if (!map[`${rowStart}-${col}`]) {
+        map[`${rowStart}-${col}`] = [];
+      }
+
+      // Note: We might have identical schedules from DB so avoid dupes
+      const existing = map[`${rowStart}-${col}`].find(m => m.item.id === s.id);
+      if (!existing) {
+        map[`${rowStart}-${col}`].push({ item: s, rowSpan });
+      }
+
+      for (let r = rowStart + 1; r < rowStart + rowSpan; r++) {
+        if (!map[`${r}-${col}`]) {
+          map[`${r}-${col}`] = [];
+        }
+        // push a zero-rowspan placeholder so we know this cell is covered
+        if (!map[`${r}-${col}`].find(m => m.item.id === s.id)) {
+          map[`${r}-${col}`].push({ item: s, rowSpan: 0 });
+        }
+      }
+    });
+
+    return map;
+  }, [jadwal, selectedGedung, hariKerja, jamKuliah]);
+
 
   const containerVariants = {
     hidden: { opacity: 0, y: 30 },
@@ -402,7 +395,7 @@ export default function MonitoringLabVokasi() {
                             —
                           </span>
                           <span className="text-4xl font-extrabold tracking-tighter text-[#E40082]">
-                            18:00
+                            20:00
                           </span>
                           <span className="text-sm font-bold text-blue-200 ml-2 mb-2 italic">
                             WIB
@@ -426,6 +419,17 @@ export default function MonitoringLabVokasi() {
         </div>
       </section>
 
+      {loadingJadwal && (
+        <div className="py-10 text-center text-sm text-slate-500">
+          Memuat jadwal...
+        </div>
+      )}
+      {jadwalError && (
+        <div className="py-10 text-center text-sm text-red-600">
+          {jadwalError}
+        </div>
+      )}
+
       {/* SECTION 3: MONITORING JADWAL */}
       <section className="pt-12 pb-0 bg-[#F8FAFF]">
         <div className="w-full">
@@ -446,9 +450,10 @@ export default function MonitoringLabVokasi() {
                   onChange={(e) => setSelectedGedung(e.target.value)}
                   className="bg-white border border-slate-200 rounded-2xl pl-11 pr-10 py-3 text-[12px] font-semibold text-[#263C92] outline-none shadow-sm appearance-none min-w-[200px] focus:ring-2 focus:ring-[#263C92]/10 transition-all"
                 >
-                  <option>Semua Gedung</option>
-                  <option>Gedung CA</option>
-                  <option>Gedung CB</option>
+                  <option value="Semua Gedung">Semua Gedung</option>
+                  {uniqueGedungs.map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
                 </select>
                 <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#E40082]" />
               </div>
@@ -485,23 +490,20 @@ export default function MonitoringLabVokasi() {
                     {hariKerja.map((h, i) => (
                       <th
                         key={i}
-                        className={`p-5 text-center transition-all duration-300 ${
-                          h.isToday ? "bg-[#E40082]" : "bg-white"
-                        }`}
+                        className={`p-5 text-center transition-all duration-300 ${h.isToday ? "bg-[#E40082]" : "bg-white"
+                          }`}
                       >
                         <span
-                          className={`block text-[14px] font-bold uppercase mb-1 ${
-                            h.isToday ? "text-white" : "text-[#263C92]"
-                          }`}
+                          className={`block text-[14px] font-bold uppercase mb-1 ${h.isToday ? "text-white" : "text-[#263C92]"
+                            }`}
                         >
                           {h.hari}
                         </span>
                         <span
-                          className={`text-[10px] font-medium px-3 py-1 rounded-full ${
-                            h.isToday
-                              ? "bg-white/20 text-white"
-                              : "text-slate-400 bg-slate-50"
-                          }`}
+                          className={`text-[10px] font-medium px-3 py-1 rounded-full ${h.isToday
+                            ? "bg-white/20 text-white"
+                            : "text-slate-400 bg-slate-50"
+                            }`}
                         >
                           {h.tgl}
                         </span>
@@ -525,88 +527,15 @@ export default function MonitoringLabVokasi() {
                       </td>
 
                       {hariKerja.map((hari, hIdx) => {
-                        let isCovered = false;
-                        for (let k = 1; k <= idx; k++) {
-                          const prevData = getDemoData(idx - k, hIdx);
-                          if (prevData && prevData.durasi > k) {
-                            isCovered = true;
-                            break;
-                          }
-                        }
-                        if (isCovered) return null;
+                        const cellArray = scheduleMap[`${idx}-${hIdx}`];
 
-                        const data = getDemoData(idx, hIdx);
-                        const rowSpan = data?.durasi || 1;
-
-                        return (
-                          <td
-                            key={hIdx}
-                            rowSpan={rowSpan}
-                            className="p-2 sm:p-3 align-top border-r border-slate-50/50 h-56 sm:h-60"
-                          >
-                            {data ? (
-                              /* CARD ISI (JADWAL) */
-                              <motion.div
-                                whileHover={{ y: -2 }}
-                                className="bg-white border border-slate-100 rounded-2xl p-3 sm:p-4 shadow-sm h-full flex flex-col justify-between transition-all group relative overflow-hidden"
-                              >
-                                <div className="flex-1">
-                                  <div className="flex justify-between items-start mb-2 gap-1">
-                                    <span className="text-[8px] sm:text-[9px] font-bold text-[#E40082] uppercase tracking-tighter bg-[#FFF0F7] px-2 py-0.5 rounded truncate">
-                                      {data.gedung}
-                                    </span> 
-                                    {/* bagde label color */}
-                                    <div 
-                                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full shrink-0 ${
-                                        data.status === "digunakan"
-                                          ? "bg-rose-50 text-rose-600"
-                                          : data.status === "menunggu"
-                                            ? "bg-amber-50 text-amber-600"
-                                            : data.status === "maintenance" ||
-                                                data.status === "maintance"
-                                              ? "bg-slate-100 text-slate-500 border border-slate-200"
-                                              : "bg-emerald-50 text-emerald-600"
-                                      }`}
-                                    >
-                                      <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">
-                                        {data.status}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <h4 className="text-[11px] sm:text-[13px] font-bold text-[#263C92] leading-tight mb-2 line-clamp-2">
-                                    {data.lab}
-                                  </h4>
-                                  <div className="flex items-center gap-2 text-slate-400">
-                                    <Users className="w-3 h-3 shrink-0" />
-                                    <span className="text-[10px] font-normal truncate">
-                                      {data.prodi}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
-                                  <div className="flex items-center gap-2 text-[#263C92]">
-                                    <Clock className="w-3 h-3 text-[#E40082] shrink-0" />
-                                    <span className="text-[10px] sm:text-[11px] font-bold">
-                                      {j.start} -{" "}
-                                      {jamKuliah[idx + rowSpan - 1]?.end}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() =>
-                                      setActiveModal({
-                                        ...data,
-                                        waktu: `${j.start} - ${jamKuliah[idx + rowSpan - 1]?.end}`,
-                                      })
-                                    }
-                                    className="w-full flex items-center justify-center gap-2 bg-[#263C92] sm:bg-slate-50 text-white sm:text-slate-600 py-2.5 sm:py-2 rounded-xl text-[10px] font-bold sm:font-semibold active:scale-95 transition-all"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" /> Detail
-                                  </button>
-                                </div>
-                              </motion.div>
-                            ) : (
-                              /* CARD KOSONG (AVAILABLE) - PERBAIKAN TOMBOL AGAR TIDAK KELUAR */
+                        // if cell is completely empty or just undefined
+                        if (!cellArray || cellArray.length === 0) {
+                          return (
+                            <td
+                              key={hIdx}
+                              className="p-2 sm:p-3 align-top border-r border-slate-50/50 h-[10rem] sm:h-[12rem]"
+                            >
                               <motion.div
                                 whileHover={{
                                   scale: 1.01,
@@ -617,7 +546,7 @@ export default function MonitoringLabVokasi() {
                                 <div className="flex-1">
                                   <div className="flex justify-between items-start mb-2">
                                     <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter bg-slate-50 px-2 py-0.5 rounded">
-                                      Gedung CB
+                                      {selectedGedung === "Semua Gedung" ? "Semua Gedung" : selectedGedung}
                                     </span>
                                     <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-400">
                                       <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">
@@ -626,12 +555,12 @@ export default function MonitoringLabVokasi() {
                                     </div>
                                   </div>
                                   <h4 className="text-[11px] sm:text-[13px] font-medium text-slate-400 leading-tight mb-2 italic">
-                                    Lab Terbuka
+                                    Belum Terjadwal
                                   </h4>
                                   <div className="flex items-center gap-2 text-slate-300">
                                     <Users className="w-3 h-3 shrink-0" />
                                     <span className="text-[9px] sm:text-[10px] font-normal italic">
-                                      Belum Terjadwal
+                                      Ruang Tersedia
                                     </span>
                                   </div>
                                 </div>
@@ -644,17 +573,104 @@ export default function MonitoringLabVokasi() {
                                     </span>
                                   </div>
                                   <button
-                                    onClick={() =>
-                                      (window.location.href = "/booking")
-                                    }
+                                    onClick={() => (window.location.href = "/booking")}
                                     className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-[#263C92] py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase hover:bg-[#263C92] hover:text-white transition-all active:scale-95 shadow-sm"
                                   >
-                                    <CalendarPlus className="w-3.5 h-3.5" />{" "}
-                                    Booking
+                                    <CalendarPlus className="w-3.5 h-3.5" /> Booking
                                   </button>
                                 </div>
                               </motion.div>
-                            )}
+                            </td>
+                          );
+                        }
+
+                        // Filter out trailing overlaps so we just take the highest rowspan
+                        const maxRowSpan = Math.max(...cellArray.map(c => c.rowSpan));
+                        
+                        // FIX: Jika cell memiliki placeholder (rowSpan 0), berarti cell ini sudah di-cover 
+                        // oleh rowspan dari event sebelumnya dalam hari yang sama. 
+                        // Jangan me-render <td> baru untuk menghindari pergeseran grid 
+                        // yang menyebabkan munculnya kolom ekstra (ke-7).
+                        const isCoveredByPreviousRow = cellArray.some(c => c.rowSpan === 0);
+                        if (maxRowSpan === 0 || isCoveredByPreviousRow) return null; // this entire cell is covered
+
+                        // There can be overlapping labs horizontally in the same timeslot!
+                        return (
+                          <td
+                            key={hIdx}
+                            rowSpan={maxRowSpan}
+                            className="p-2 sm:p-3 align-top border-r border-slate-50/50 h-[10rem] sm:h-[12rem]"
+                          >
+                            <div className="flex flex-col gap-2 h-full">
+                              {cellArray.filter(c => c.rowSpan > 0).map((cell, cIdx) => {
+                                const status = getScheduleStatus(cell.item, hariKerja[hIdx]?.date).toLowerCase() as string;
+                                const waktu = `${normalizeTime(cell.item.jamMulai)} - ${normalizeTime(cell.item.jamSelesai)} WIB`;
+
+                                return (
+                                  <motion.div
+                                    key={cIdx}
+                                    whileHover={{ y: -2 }}
+                                    className="bg-white border border-slate-100 rounded-2xl p-3 sm:p-4 shadow-sm flex-1 flex flex-col justify-between transition-all group relative overflow-hidden"
+                                  >
+                                    <div className="flex-1">
+                                      <div className="flex justify-between items-start mb-2 gap-1">
+                                        <span className="text-[8px] sm:text-[9px] font-bold text-[#E40082] uppercase tracking-tighter bg-[#FFF0F7] px-2 py-0.5 rounded truncate">
+                                          {cell.item.lab}
+                                        </span>
+                                        <div
+                                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full shrink-0 ${status === "digunakan"
+                                            ? "bg-rose-50 text-rose-600"
+                                            : status === "menunggu"
+                                              ? "bg-amber-50 text-amber-600"
+                                              : (status === "maintenance" || status === "maintance")
+                                                ? "bg-slate-100 text-slate-500 border border-slate-200"
+                                                : "bg-emerald-50 text-emerald-600"
+                                            }`}
+                                        >
+                                          <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">
+                                            {status}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <h4 className="text-[11px] sm:text-[13px] font-bold text-[#263C92] leading-tight mb-2 line-clamp-2">
+                                        {cell.item.mataKuliah || "Kegiatan Lab"}
+                                      </h4>
+                                      <div className="flex items-center gap-2 text-slate-400">
+                                        <Users className="w-3 h-3 shrink-0" />
+                                        <span className="text-[10px] font-normal truncate">
+                                          {cell.item.prodi} - {cell.item.kelas}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
+                                      <div className="flex items-center gap-2 text-[#263C92]">
+                                        <Clock className="w-3 h-3 text-[#E40082] shrink-0" />
+                                        <span className="text-[10px] sm:text-[11px] font-bold">
+                                          {waktu}
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          const activeSesi = labStatus?.peminjaman?.find(p => p.lab === cell.item.lab && p.status === "aktif");
+                                          const peminjamVal = activeSesi ? activeSesi.nama : "Kelas Umum";
+
+                                          setActiveModal({
+                                            ...cell.item,
+                                            status,
+                                            waktu,
+                                            peminjam: peminjamVal,
+                                          });
+                                        }}
+                                        className="w-full flex items-center justify-center gap-2 bg-[#263C92] sm:bg-slate-50 text-white sm:text-slate-600 py-2.5 sm:py-2 rounded-xl text-[10px] font-bold sm:font-semibold active:scale-95 transition-all"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" /> Detail
+                                      </button>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </div>
                           </td>
                         );
                       })}
@@ -711,6 +727,7 @@ export default function MonitoringLabVokasi() {
           </div>
         </div>
       </section>
+
       {/* --- MODAL DETAIL --- */}
       <AnimatePresence>
         {activeModal && (
@@ -743,21 +760,20 @@ export default function MonitoringLabVokasi() {
                     {activeModal.gedung}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest ${
-                      activeModal.status === "digunakan"
-                        ? "bg-rose-50 text-rose-600"
-                        : activeModal.status === "menunggu"
-                          ? "bg-amber-50 text-amber-600"
-                          : activeModal.status === "tersedia"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-slate-50 text-slate-400"
-                    }`}
+                    className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest ${activeModal.status === "digunakan"
+                      ? "bg-rose-50 text-rose-600"
+                      : activeModal.status === "menunggu"
+                        ? "bg-amber-50 text-amber-600"
+                        : activeModal.status === "tersedia"
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-slate-50 text-slate-400"
+                      }`}
                   >
                     {activeModal.status}
                   </span>
                 </div>
                 <h3 className="text-2xl font-bold text-[#263C92] leading-tight tracking-tight">
-                  {activeModal.lab}
+                  {activeModal.mataKuliah || activeModal.lab}
                 </h3>
               </div>
 
@@ -774,7 +790,7 @@ export default function MonitoringLabVokasi() {
                       {activeModal.peminjam}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {activeModal.prodi}
+                      {activeModal.prodi} - {activeModal.kelas}
                     </p>
                   </div>
                 </div>
@@ -821,8 +837,9 @@ export default function MonitoringLabVokasi() {
               )}
             </motion.div>
           </div>
-        )}
-      </AnimatePresence>
-    </div>
+        )
+        }
+      </AnimatePresence >
+    </div >
   );
 }

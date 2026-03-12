@@ -97,6 +97,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     if (!token) {
       router.replace("/auth/login");
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsAuthenticated(true);
     }
   }, [router]);

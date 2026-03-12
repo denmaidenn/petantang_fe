@@ -64,7 +64,11 @@ export default function KelolaLabFinal() {
   const [labToDelete, setLabToDelete] = useState<number | null>(null);
 
   const [modalType, setModalType] = useState<"detail" | "checkout">("detail");
-  const [checklist, setChecklist] = useState({ clean: false, gear: false, noDamage: false });
+  const [checklist, setChecklist] = useState<Record<'clean' | 'gear' | 'noDamage', boolean>>({
+    clean: false,
+    gear: false,
+    noDamage: false,
+  });
 
   const [formData, setFormData] = useState({
     name: "", location: "Gedung Delta", capacity: 0, days: "Senin",
@@ -561,13 +565,18 @@ export default function KelolaLabFinal() {
                     <p className="text-xs font-bold text-red-600 leading-snug">Kelalaian checklist akan mengakibatkan pemblokiran KTM otomatis.</p>
                   </div>
                   <div className="space-y-2">
-                    {[
-                      { key: 'clean', label: 'Meja & Lantai Bersih' },
-                      { key: 'gear', label: 'PC Sudah Mati' },
-                      { key: 'noDamage', label: 'Barang Lengkap' }
-                    ].map((item) => (
+                    {([
+                      { key: "clean", label: "Meja & Lantai Bersih" },
+                      { key: "gear", label: "PC Sudah Mati" },
+                      { key: "noDamage", label: "Barang Lengkap" },
+                    ] as const).map((item) => (
                       <label key={item.key} className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-xl cursor-pointer border border-slate-100">
-                        <input type="checkbox" className="w-4 h-4 text-[#E40082]" checked={(checklist as any)[item.key]} onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })} />
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 text-[#E40082]"
+                          checked={checklist[item.key]}
+                          onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })}
+                        />
                         <span className="text-sm font-medium text-slate-700">{item.label}</span>
                       </label>
                     ))}

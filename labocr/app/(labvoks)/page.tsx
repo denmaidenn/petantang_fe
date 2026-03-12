@@ -5,7 +5,6 @@ import Link from "next/link";
 import { motion, easeInOut, Variants } from "framer-motion";
 import {
   QrCode,
-  Calendar,
   Clock,
   ArrowRight,
   Users,
@@ -17,6 +16,7 @@ import {
   ScanFace,
   CheckCircle2,
 } from "lucide-react";
+import { getPublicJadwal, getPublicStatus, LabStatusResponse } from "@/lib/api";
 
 // Animation variants
 const containerVariants: Variants = {
@@ -44,14 +44,59 @@ const itemVariants: Variants = {
 };
 
 export default function Labvokshome() {
-  const labs = [
-    { name: "Lab Multimedia 1", prodi: "Teknologi Digital", gedung: "Gedung CA", status: "digunakan", time: "07:00 - 09:00" },
-    { name: "Lab Pemrograman 2", prodi: "Sistem Informasi", gedung: "Gedung CA", status: "tersedia", time: "11:00 - 13:00" },
-    { name: "Lab Jaringan", prodi: "Teknologi Digital", gedung: "Gedung CB", status: "menunggu", time: "15:00 - 17:00" },
-    { name: "Lab Desain Kreatif", prodi: "Komunikasi", gedung: "Gedung CA", status: "digunakan", time: "09:00 - 11:00" },
-    { name: "Lab Hardware", prodi: "Teknologi Digital", gedung: "Gedung CB", status: "maintenance", time: "07:00 - 08:00" },
-    { name: "Lab Robotik", prodi: "Sistem Informasi", gedung: "Gedung CB", status: "tersedia", time: "11:00 - 13:00" },
-  ];
+  const [labCards, setLabCards] = useState<Array<{ name: string; prodi: string; gedung: string; status: string; time: string }>>([]);
+  const [loadingLabs, setLoadingLabs] = useState(true);
+  const [labError, setLabError] = useState<string | null>(null);
+
+  const getScheduleStatus = (s: { status?: string; lab: string }, labStatus: LabStatusResponse | null): string => {
+    let baseStatus = s.status || "tersedia";
+
+    const isLabUsed = labStatus?.peminjaman?.some(p => p.lab === s.lab && p.status === "aktif");
+    const isLabWaiting = labStatus?.peminjaman_pending?.some(p => p.lab === s.lab && p.status === "menunggu");
+
+    if (isLabUsed) return "digunakan";
+    if (isLabWaiting) return "menunggu";
+
+    return baseStatus as string;
+  };
+
+  useEffect(() => {
+    Promise.all([getPublicJadwal(), getPublicStatus()])
+      .then(([jadwalData, statusData]) => {
+        const todayName = new Date().toLocaleDateString("id-ID", { weekday: "long" }).toLowerCase();
+
+        // Filter jadwal hari ini dan urutkan berdasarkan jam mulai
+        const todaySchedule = jadwalData
+          .filter((s) => s.hari.toLowerCase() === todayName)
+          .sort((a, b) => a.jamMulai.localeCompare(b.jamMulai));
+
+        // Ambil maksimal 3 jadwal dengan lab yang berbeda
+        const uniqueLabs = new Set<string>();
+        const displayedSchedules = [];
+
+        for (const s of todaySchedule) {
+          if (!uniqueLabs.has(s.lab)) {
+            uniqueLabs.add(s.lab);
+            displayedSchedules.push(s);
+            if (displayedSchedules.length === 3) break;
+          }
+        }
+
+        setLabCards(
+          displayedSchedules.map((s) => ({
+            name: s.lab,
+            prodi: s.prodi,
+            gedung: s.gedung,
+            status: getScheduleStatus(s, statusData).toLowerCase(),
+            time: `${s.jamMulai} - ${s.jamSelesai}`,
+          }))
+        );
+      })
+      .catch((err) => {
+        setLabError(err?.message || "Gagal memuat data lab");
+      })
+      .finally(() => setLoadingLabs(false));
+  }, []);
 
   // UPDATE: ALUR 4 TAHAP
   const steps = [
@@ -83,8 +128,8 @@ export default function Labvokshome() {
     <div className="min-h-screen bg-white font-sans text-slate-900 relative antialiased">
       {/* ================= SECTION 1: HERO WITH DOUBLE WAVE ================= */}
       <section className="relative flex flex-col items-center justify-center pt-32 pb-20 px-6 text-center bg-gradient-to-br from-[#FFF0F7] via-[#F0F4FF] to-[#F5F8FF] overflow-hidden">
-        
-        <motion.div 
+
+        <motion.div
           className="relative z-10 max-w-7xl mx-auto"
           initial="hidden"
           animate="visible"
@@ -111,9 +156,9 @@ export default function Labvokshome() {
         </motion.div>
 
         <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-[0] z-0">
-          <svg 
-            viewBox="0 0 1200 120" 
-            preserveAspectRatio="none" 
+          <svg
+            viewBox="0 0 1200 120"
+            preserveAspectRatio="none"
             className="relative block w-[calc(100%+1.3px)] h-[80px] fill-white"
           >
             <path d="M0,120 C200,100 400,0 600,60 C800,120 1000,20 1200,120 L1200,120 L0,120 Z" opacity="0.3" />
@@ -125,7 +170,7 @@ export default function Labvokshome() {
       {/* ================= SECTION 2: STATUS LAB ================= */}
       <section className="relative w-full bg-white pt-16 pb-12 border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-6">
-          <motion.div 
+          <motion.div
             className="text-center mb-12 flex flex-col items-center"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -142,14 +187,33 @@ export default function Labvokshome() {
             <p className="text-slate-500 text-sm font-medium">Kondisi ruangan pada sesi yang sedang berjalan saat ini.</p>
           </motion.div>
 
-          <motion.div 
+          <motion.div
+            key={loadingLabs ? "loading" : "loaded"}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12"
             variants={containerVariants}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-50px" }}
           >
-            {labs.map((lab, i) => (
+            {loadingLabs && (
+              <div className="col-span-full text-center text-slate-500 py-12">
+                Memuat data jadwal...
+              </div>
+            )}
+
+            {labError && (
+              <div className="col-span-full text-center text-red-600 py-12">
+                {labError}
+              </div>
+            )}
+
+            {!loadingLabs && !labError && labCards.length === 0 && (
+              <div className="col-span-full text-center text-slate-500 py-12">
+                Tidak ada jadwal untuk hari ini.
+              </div>
+            )}
+
+            {labCards.map((lab, i) => (
               <motion.div
                 key={i}
                 variants={itemVariants}
@@ -178,9 +242,9 @@ export default function Labvokshome() {
               </motion.div>
             ))}
           </motion.div>
-          
+
           <div className="flex justify-center">
-            <Link href="/labvoks/jadwal" className="group flex items-center gap-2 text-[#263C92] font-bold text-sm hover:text-[#E40082] transition-colors">
+            <Link href="/jadwal" className="group flex items-center gap-2 text-[#263C92] font-bold text-sm hover:text-[#E40082] transition-colors">
               Lihat Jadwal Lengkap
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
@@ -210,8 +274,8 @@ export default function Labvokshome() {
           <div className="relative">
             {/* Progress Bar Line */}
             <div className="absolute top-10 left-[10%] right-[10%] h-[3px] bg-slate-200/50 rounded-full hidden md:block overflow-hidden">
-              <motion.div 
-                className="h-full bg-[#E40082]" 
+              <motion.div
+                className="h-full bg-[#E40082]"
                 animate={{ width: `${(activeStep / (steps.length - 1)) * 100}%` }}
                 transition={{ duration: 1, ease: "easeInOut" }}
               />
@@ -222,8 +286,8 @@ export default function Labvokshome() {
               {steps.map((step, index) => {
                 const isActive = index === activeStep;
                 return (
-                  <motion.div 
-                    key={index} 
+                  <motion.div
+                    key={index}
                     className={`p-6 rounded-[2rem] transition-all duration-700 text-center border relative flex flex-col items-center ${isActive ? "bg-[#263C92] shadow-2xl scale-105 -translate-y-2 border-transparent text-white" : "bg-white/80 backdrop-blur-sm border-slate-100 shadow-sm"}`}
                   >
                     <div className={`w-12 h-12 mb-4 flex items-center justify-center rounded-2xl font-bold transition-all duration-500 ${isActive ? "bg-[#E40082] text-white rotate-12 shadow-lg shadow-pink-500/30" : "bg-slate-50 text-slate-400"}`}>
