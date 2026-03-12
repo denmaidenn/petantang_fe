@@ -20,8 +20,10 @@ import {
   updateJadwal,
   deleteJadwal,
   archiveJadwal,
+  getLabs,
   type Schedule,
   type ApiError,
+  type Lab,
 } from "@/lib/api";
 
 import Swal from "sweetalert2";
@@ -30,16 +32,18 @@ const INITIAL_DATA: Schedule[] = [];
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const PRODI_LIST = [
-  "Informatika",
-  "Sistem Informasi",
-  "Teknik Komputer",
-  "Akuntansi",
-  "Manajemen",
+  "Komunikasi Digital dan Media",
+  "Ekowisata",
+  "Teknologi Rekayasa Perangkat Lunak",
+  "Teknologi Rekayasa Komputer",
+  "Supervisor Jaminan Mutu Pangan",
+  "Manajemen Industri Jasa Makanan dan Gizi",
 ];
 
 export default function JadwalAdminCalendarPage() {
   const router = useRouter();
   const [jadwal, setJadwal] = useState<Schedule[]>(INITIAL_DATA);
+  const [labs, setLabs] = useState<Lab[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterProdi, setFilterProdi] = useState("Semua Prodi");
   const [isLoading, setIsLoading] = useState(true);
@@ -56,8 +60,9 @@ export default function JadwalAdminCalendarPage() {
     setFetchError(null);
 
     try {
-      const data = await getJadwal(token);
-      setJadwal(data);
+      const [jadwalData, labsData] = await Promise.all([getJadwal(token), getLabs(token)]);
+      setJadwal(jadwalData);
+      setLabs(labsData);
     } catch (err) {
       const apiErr = err as ApiError;
       setFetchError(apiErr.detail || "Gagal memuat jadwal.");
@@ -88,6 +93,36 @@ export default function JadwalAdminCalendarPage() {
     tipeSemester: "Genap",
     tahunAjaran: "2025/2026",
   });
+  const [isCustomLab, setIsCustomLab] = useState(false);
+  const [customLab, setCustomLab] = useState("");
+  const [isCustomGedung, setIsCustomGedung] = useState(false);
+  const [customGedung, setCustomGedung] = useState("");
+
+  const computeLabOptions = (gedung: string, customGedung: boolean) => {
+    const allLabs = labs.map((lab) => lab.name).filter(Boolean);
+    if (allLabs.length === 0) {
+      // Fallback: gunakan list lab dari jadwal kalau API lab belum siap
+      return Array.from(new Set(jadwal.map((item) => item.lab).filter(Boolean)));
+    }
+
+    if (customGedung) return allLabs;
+    if (!gedung) return [];
+
+    return Array.from(new Set(labs.filter((lab) => lab.location === gedung).map((lab) => lab.name)));
+  };
+
+  const labOptions = useMemo(() => {
+    return computeLabOptions(formData.gedung, isCustomGedung);
+  }, [labs, jadwal, formData.gedung, isCustomGedung]);
+
+  const gedungOptions = useMemo(() => {
+    const fromLabs = Array.from(new Set(labs.map((lab) => lab.location).filter(Boolean)));
+    if (fromLabs.length > 0) return fromLabs;
+
+    // Fallback jika belum ada lab (misal: data belum dimuat) supaya dropdown tidak kosong
+    const fromJadwal = Array.from(new Set(jadwal.map((item) => item.gedung).filter(Boolean)));
+    return fromJadwal;
+  }, [labs, jadwal]);
 
   const headerInfo = useMemo(() => {
     const activeData = jadwal.filter((item) => !item.isArchived);
@@ -110,8 +145,31 @@ export default function JadwalAdminCalendarPage() {
   }, [jadwal, searchQuery, filterProdi]);
 
   // Handlers
+  const timesOverlap = (startA: string, endA: string, startB: string, endB: string) => {
+    // Format "HH:MM" sehingga leksikografis bisa dibandingkan langsung.
+    return startA < endB && startB < endA;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validasi overlap untuk lab + hari sama
+    const conflict = jadwal.find((item) => {
+      if (item.isArchived) return false;
+      if (currentData && item.id === currentData.id) return false; // ignore editing itself
+      if (item.lab !== formData.lab) return false;
+      if (item.hari !== formData.hari) return false;
+      return timesOverlap(item.jamMulai, item.jamSelesai, formData.jamMulai, formData.jamSelesai);
+    });
+
+    if (conflict) {
+      Swal.fire({
+        icon: "warning",
+        title: "Konflik Jadwal",
+        html: `Jadwal bentrok dengan <strong>${conflict.mataKuliah}</strong> (${conflict.kelas}) di lab <strong>${conflict.lab}</strong> pada ${conflict.hari} ${conflict.jamMulai}-${conflict.jamSelesai}.`,
+      });
+      return;
+    }
 
     const token = localStorage.getItem("admin_jwt_token");
     if (!token) {
@@ -139,6 +197,17 @@ export default function JadwalAdminCalendarPage() {
   const openEditModal = (item: any) => {
     setCurrentData(item);
     setFormData(item);
+
+    const isCustomGedungValue = item.gedung && !gedungOptions.includes(item.gedung);
+    const labCandidates = computeLabOptions(item.gedung, isCustomGedungValue);
+    const isCustomLabValue = item.lab && !labCandidates.includes(item.lab);
+
+    setIsCustomGedung(isCustomGedungValue);
+    setCustomGedung(isCustomGedungValue ? item.gedung : "");
+
+    setIsCustomLab(isCustomLabValue);
+    setCustomLab(isCustomLabValue ? item.lab : "");
+
     setIsModalOpen(true);
   };
 
@@ -156,6 +225,10 @@ export default function JadwalAdminCalendarPage() {
       tipeSemester: "Genap",
       tahunAjaran: "2025/2026",
     });
+    setIsCustomLab(false);
+    setCustomLab("");
+    setIsCustomGedung(false);
+    setCustomGedung("");
     setIsModalOpen(true);
   };
 
@@ -256,6 +329,7 @@ export default function JadwalAdminCalendarPage() {
                   0 ? (
                   filteredJadwal
                     .filter((item) => item.hari === hari)
+                    .sort((a, b) => a.jamMulai.localeCompare(b.jamMulai))
                     .map((item) => (
                       <div
                         key={item.id}
@@ -398,14 +472,108 @@ export default function JadwalAdminCalendarPage() {
                   <label className="text-[10px] font-bold text-slate-400 uppercase">
                     Lab
                   </label>
-                  <input
-                    required
-                    value={formData.lab}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lab: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none"
-                  />
+                  <div className="relative">
+                    <select
+                      value={isCustomLab ? "__custom__" : formData.lab}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "__custom__") {
+                          setIsCustomLab(true);
+                          setCustomLab("");
+                          setFormData({ ...formData, lab: "" });
+                        } else {
+                          setIsCustomLab(false);
+                          setCustomLab("");
+                          setFormData({ ...formData, lab: val });
+                        }
+                      }}
+                      required
+                      disabled={!formData.gedung && !isCustomGedung}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white outline-none appearance-none disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      <option value="" disabled>
+                        {formData.gedung || isCustomGedung
+                          ? "Pilih lab"
+                          : "Pilih gedung dulu"}
+                      </option>
+                      {labOptions.map((lab) => (
+                        <option key={lab} value={lab}>
+                          {lab}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Tambah lab baru...</option>
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      ▾
+                    </span>
+                  </div>
+
+                  {isCustomLab && (
+                    <input
+                      required
+                      value={customLab}
+                      onChange={(e) => {
+                        setCustomLab(e.target.value);
+                        setFormData({ ...formData, lab: e.target.value });
+                      }}
+                      placeholder="Nama lab baru"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none mt-2"
+                    />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">
+                    Gedung
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={isCustomGedung ? "__custom__" : formData.gedung}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "__custom__") {
+                          setIsCustomGedung(true);
+                          setCustomGedung("");
+                          setFormData({ ...formData, gedung: "", lab: "" });
+                          setIsCustomLab(false);
+                          setCustomLab("");
+                        } else {
+                          setIsCustomGedung(false);
+                          setCustomGedung("");
+                          setFormData({ ...formData, gedung: val, lab: "" });
+                          setIsCustomLab(false);
+                          setCustomLab("");
+                        }
+                      }}
+                      required
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white outline-none appearance-none"
+                    >
+                      <option value="" disabled>
+                        Pilih gedung
+                      </option>
+                      {gedungOptions.map((gedung) => (
+                        <option key={gedung} value={gedung}>
+                          {gedung}
+                        </option>
+                      ))}
+                      <option value="__custom__">+ Tambah gedung baru...</option>
+                    </select>
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      ▾
+                    </span>
+                  </div>
+
+                  {isCustomGedung && (
+                    <input
+                      required
+                      value={customGedung}
+                      onChange={(e) => {
+                        setCustomGedung(e.target.value);
+                        setFormData({ ...formData, gedung: e.target.value });
+                      }}
+                      placeholder="Nama gedung baru"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none mt-2"
+                    />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase">

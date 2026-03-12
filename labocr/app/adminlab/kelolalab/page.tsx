@@ -49,6 +49,7 @@ export default function KelolaLabFinal() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeGedung, setActiveGedung] = useState("Gedung Delta");
   const [showOnlyUsed, setShowOnlyUsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [labs, setLabs] = useState<Lab[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,6 +70,8 @@ export default function KelolaLabFinal() {
     name: "", location: "Gedung Delta", capacity: 0, days: "Senin",
     opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00"
   });
+  const [isCustomLocation, setIsCustomLocation] = useState(false);
+  const [customLocation, setCustomLocation] = useState("");
   const [tempEquipment, setTempEquipment] = useState<string[]>([]);
   const [newItemName, setNewItemName] = useState("");
 
@@ -114,8 +117,10 @@ export default function KelolaLabFinal() {
   }, [currentTime]);
 
   const historyGedung = useMemo(() => {
-    return Array.from(new Set(labs.map(l => l.location))).filter(loc => loc !== "");
-  }, [labs]);
+    const set = new Set<string>(labs.map(l => l.location).filter(Boolean));
+    if (activeGedung) set.add(activeGedung);
+    return Array.from(set);
+  }, [labs, activeGedung]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -132,9 +137,14 @@ export default function KelolaLabFinal() {
   }, [labs]);
 
   const filteredLabs = useMemo(() => {
-    if (showOnlyUsed) return processedLabs.filter(l => l.status === "Digunakan");
-    return processedLabs.filter(l => l.location === activeGedung);
-  }, [processedLabs, activeGedung, showOnlyUsed]);
+    const base = showOnlyUsed
+      ? processedLabs.filter(l => l.status === "Digunakan")
+      : processedLabs.filter(l => l.location === activeGedung);
+
+    if (!searchQuery.trim()) return base;
+    const q = searchQuery.trim().toLowerCase();
+    return base.filter(lab => lab.name.toLowerCase().includes(q) || lab.location.toLowerCase().includes(q));
+  }, [processedLabs, activeGedung, showOnlyUsed, searchQuery]);
 
   const handleSaveLab = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,7 +292,17 @@ export default function KelolaLabFinal() {
                 <ShieldExclamationIcon className="h-4 w-4" /> {laporanBlokir.length} KTM Terblokir
               </button>
             )}
-            <button onClick={() => { setLabToEdit(null); setFormData({ name: "", location: activeGedung, capacity: 0, days: "Senin", opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00" }); setTempEquipment([]); setIsModalFormOpen(true); }} className="bg-[#263C92] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold text-sm hover:opacity-90">
+            <button
+              onClick={() => {
+                setLabToEdit(null);
+                setFormData({ name: "", location: activeGedung, capacity: 0, days: "Senin", opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00" });
+                setIsCustomLocation(false);
+                setCustomLocation("");
+                setTempEquipment([]);
+                setIsModalFormOpen(true);
+              }}
+              className="bg-[#263C92] text-white px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold text-sm hover:opacity-90">
+
               <PlusIcon className="h-5 w-5 stroke-[2]" /> Input Lab
             </button>
           </div>
@@ -291,16 +311,35 @@ export default function KelolaLabFinal() {
 
       <main className="max-w-7xl mx-auto px-6 py-4">
         {/* TABS */}
-        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          <button onClick={() => { setShowOnlyUsed(true); setActiveGedung(""); }} className={`px-5 py-1.5 rounded-lg font-semibold text-xs uppercase flex items-center gap-2 border-2 ${showOnlyUsed ? "bg-orange-500 border-orange-500 text-white shadow-lg" : "bg-white border-slate-100 text-slate-400"}`}>
-            <FireIcon className="h-4 w-4" /> Used Today
-          </button>
-          <div className="h-6 w-[1px] bg-slate-200 my-auto mx-2"></div>
-          {Array.from(new Set(labs.map(l => l.location))).map((gedung) => (
-            <button key={gedung} onClick={() => { setShowOnlyUsed(false); setActiveGedung(gedung); }} className={`px-5 py-1.5 rounded-lg font-semibold text-xs uppercase border-2 ${!showOnlyUsed && activeGedung === gedung ? "bg-[#E40082] border-[#E40082] text-white" : "bg-white border-slate-100 text-slate-400"}`}>
-              {gedung}
+        <div className="mb-4 flex flex-col gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button onClick={() => { setShowOnlyUsed(true); setActiveGedung(""); }} className={`px-5 py-1.5 rounded-lg font-semibold text-xs uppercase flex items-center gap-2 border-2 ${showOnlyUsed ? "bg-orange-500 border-orange-500 text-white shadow-lg" : "bg-white border-slate-100 text-slate-400"}`}>
+              <FireIcon className="h-4 w-4" /> Used Today
             </button>
-          ))}
+            <div className="h-6 w-[1px] bg-slate-200 my-auto mx-2"></div>
+            {Array.from(new Set(labs.map(l => l.location))).map((gedung) => (
+              <button key={gedung} onClick={() => { setShowOnlyUsed(false); setActiveGedung(gedung); }} className={`px-5 py-1.5 rounded-lg font-semibold text-xs uppercase border-2 ${!showOnlyUsed && activeGedung === gedung ? "bg-[#E40082] border-[#E40082] text-white" : "bg-white border-slate-100 text-slate-400"}`}>
+                {gedung}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari lab atau lokasi..."
+              className="w-full max-w-md p-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#E40082]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-200"
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -345,7 +384,21 @@ export default function KelolaLabFinal() {
                   <WrenchScrewdriverIcon className="h-3.5 w-3.5" /> Maintenance
                 </button>
                 <button onClick={() => { setSelectedLab(lab); setModalType("detail"); }} className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl text-[10px] font-bold uppercase hover:bg-slate-200">Detail</button>
-                <button onClick={() => { setLabToEdit(lab); setFormData({ ...lab, days: lab.days || "Senin", useStart: lab.useStart || "08:00", useEnd: lab.useEnd || "11:00" }); setTempEquipment(lab.equipment); setIsModalFormOpen(true); }} className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-[#263C92]"><PencilSquareIcon className="h-5 w-5" /></button>
+                <button
+                  onClick={() => {
+                    setLabToEdit(lab);
+                    setFormData({ ...lab, days: lab.days || "Senin", useStart: lab.useStart || "08:00", useEnd: lab.useEnd || "11:00" });
+                    setTempEquipment(lab.equipment);
+
+                    const isCustom = !historyGedung.includes(lab.location);
+                    setIsCustomLocation(isCustom);
+                    setCustomLocation(isCustom ? lab.location : "");
+
+                    setIsModalFormOpen(true);
+                  }}
+                  className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-[#263C92]">
+                  <PencilSquareIcon className="h-5 w-5" />
+                </button>
                 <button onClick={() => { setLabToDelete(lab.id); setIsDeleteModalOpen(true); }} className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-red-500"><TrashIcon className="h-5 w-5" /></button>
               </div>
             </div>
@@ -369,21 +422,48 @@ export default function KelolaLabFinal() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Gedung</label>
+                <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Gedung</label>
+                <div className="relative">
+                  <select
+                    value={isCustomLocation ? "__custom__" : formData.location}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "__custom__") {
+                        setIsCustomLocation(true);
+                        setCustomLocation("");
+                        setFormData({ ...formData, location: "" });
+                      } else {
+                        setIsCustomLocation(false);
+                        setCustomLocation("");
+                        setFormData({ ...formData, location: val });
+                      }
+                    }}
+                    className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none focus:border-[#263C92] appearance-none"
+                    required
+                  >
+                    <option value="" disabled>Pilih gedung</option>
+                    {historyGedung.map((g, idx) => (
+                      <option key={idx} value={g}>{g}</option>
+                    ))}
+                    <option value="__custom__">+ Tambah gedung baru...</option>
+                  </select>
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+                </div>
+
+                {isCustomLocation && (
                   <input
-                    list="gedung-history"
-                    className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none focus:border-[#263C92]"
-                    placeholder="Ketik/Pilih Gedung"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    type="text"
+                    placeholder="Masukkan nama gedung"
+                    className="w-full p-3 bg-slate-50 border rounded-xl mt-3 outline-none focus:border-[#263C92]"
+                    value={customLocation}
+                    onChange={(e) => {
+                      setCustomLocation(e.target.value);
+                      setFormData({ ...formData, location: e.target.value });
+                    }}
                     required
                   />
-                  <datalist id="gedung-history">
-                    {historyGedung.map((g, idx) => (
-                      <option key={idx} value={g} />
-                    ))}
-                  </datalist>
-                </div>
+                )}
+              </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Kapasitas PC</label>
                   <input type="number" className="w-full p-3 bg-slate-50 border rounded-xl mt-1 outline-none" value={formData.capacity} onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })} />
