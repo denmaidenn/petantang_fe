@@ -27,17 +27,25 @@ export default function LoginPage() {
 
     try {
       const data = await adminLogin(formData.username, formData.password);
-      localStorage.setItem("admin_jwt_token", data.access_token);
+      localStorage.setItem("smartlab_jwt_token", data.access_token);
+      localStorage.setItem("smartlab_user_name", data.name || formData.username);
+      localStorage.setItem("smartlab_user_role", data.role);
+      if (data.role === "admin") {
+        localStorage.setItem("admin_jwt_token", data.access_token);
+      }
 
       await Swal.fire({
         icon: "success",
         title: "Login Berhasil",
-        text: "Selamat datang di Dashboard Admin",
+        text: data.role === "admin"
+          ? "Selamat datang di Dashboard Admin"
+          : "Selamat datang Mahasiswa",
         timer: 1500,
         showConfirmButton: false
       });
 
-      router.push("/adminlab/dashboard");
+      const redirectPath = data.redirect_url || (data.role === "admin" ? "/adminlab/dashboard" : "/");
+      router.push(redirectPath);
     } catch (error) {
       const apiErr = error as ApiError;
       setErrorMsg(apiErr.detail || "Username atau password salah.");
@@ -130,7 +138,7 @@ export default function LoginPage() {
               Selamat Datang
             </h2>
             <p className="text-[12px] text-slate-500 mt-1">
-              Silakan masuk ke akun petugas.
+              Silakan masuk ke akun Admin atau Mahasiswa.
             </p>
           </div>
 
@@ -156,7 +164,7 @@ export default function LoginPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, username: e.target.value })
                   }
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[14px] focus:ring-2 ring-[#263C92]/5 focus:border-[#263C92] outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-black focus:ring-2 ring-[#263C92]/5 focus:border-[#263C92] outline-none transition-all"
                   placeholder="Username"
                 />
               </div>
@@ -176,7 +184,7 @@ export default function LoginPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
                   }
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[14px] focus:ring-2 ring-[#263C92]/5 focus:border-[#263C92] outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[14px] text-black focus:ring-2 ring-[#263C92]/5 focus:border-[#263C92] outline-none transition-all"
                   placeholder="••••••••"
                 />
               </div>

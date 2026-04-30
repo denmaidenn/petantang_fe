@@ -210,14 +210,15 @@ export function checkout(nim: string, token: string): Promise<{ success: boolean
 // ─── Admin API Functions ─────────────────────────────────
 
 /**
- * [ADMIN] Login to get JWT access token
+ * Login to get JWT access token and redirect info.
+ * Supports both admin and mahasiswa login.
  */
-export function adminLogin(username: string, password: string): Promise<{ access_token: string, token_type: string }> {
+export function adminLogin(username: string, password: string): Promise<{ access_token: string; token_type: string; role: string; name: string; redirect_url: string }> {
   const formData = new URLSearchParams();
   formData.append('username', username);
   formData.append('password', password);
 
-  return fetchAPI<{ access_token: string, token_type: string }>("/api/auth/login", {
+  return fetchAPI<{ access_token: string; token_type: string; role: string; name: string; redirect_url: string }>("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: formData.toString()

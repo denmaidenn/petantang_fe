@@ -47,6 +47,8 @@ export default function Labvokshome() {
   const [labCards, setLabCards] = useState<Array<{ name: string; prodi: string; gedung: string; status: string; time: string }>>([]);
   const [loadingLabs, setLoadingLabs] = useState(true);
   const [labError, setLabError] = useState<string | null>(null);
+  const [currentDay, setCurrentDay] = useState("");
+  const [currentDate, setCurrentDate] = useState("");
 
   const getScheduleStatus = (s: { status?: string; lab: string }, labStatus: LabStatusResponse | null): string => {
     let baseStatus = s.status || "tersedia";
@@ -64,6 +66,11 @@ export default function Labvokshome() {
     Promise.all([getPublicJadwal(), getPublicStatus()])
       .then(([jadwalData, statusData]) => {
         const todayName = new Date().toLocaleDateString("id-ID", { weekday: "long" }).toLowerCase();
+        setCurrentDay(todayName.charAt(0).toUpperCase() + todayName.slice(1));
+
+        const hari = new Date().toLocaleDateString("id-ID", { weekday: "long" });
+        const tanggal = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+        setCurrentDate(`${hari}, ${tanggal}`);
 
         // Filter jadwal hari ini dan urutkan berdasarkan jam mulai
         const todaySchedule = jadwalData
@@ -185,6 +192,7 @@ export default function Labvokshome() {
             </div>
             <h2 className="text-3xl font-bold text-[#263C92] tracking-tight mb-3">Status Laboratorium</h2>
             <p className="text-slate-500 text-sm font-medium">Kondisi ruangan pada sesi yang sedang berjalan saat ini.</p>
+            <p className="text-slate-600 text-sm mt-2 font-medium">Data untuk: <span className="font-bold text-[#263C92]">{currentDate}</span></p>
           </motion.div>
 
           <motion.div
