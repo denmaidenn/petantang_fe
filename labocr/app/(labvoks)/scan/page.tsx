@@ -61,10 +61,10 @@ const ScanLabPage = () => {
   // ─── WebSocket States ────────────────────────────────
 
   const steps = [
-    { id: 1, title: "KTM", icon: <QrCode className="w-3.5 h-3.5" /> },
-    { id: 2, title: "Wajah", icon: <ScanFace className="w-3.5 h-3.5" /> },
-    { id: 3, title: "S&K", icon: <FileText className="w-3.5 h-3.5" /> },
-    { id: 4, title: "Selesai", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+    { id: 1, title: "KTM", icon: <QrCode className="w-5 h-5" /> },
+    { id: 2, title: "Wajah", icon: <ScanFace className="w-5 h-5" /> },
+    { id: 3, title: "S&K", icon: <FileText className="w-5 h-5" /> },
+    { id: 4, title: "Selesai", icon: <CheckCircle2 className="w-5 h-5" /> },
   ];
 
   // ─── Camera Control ──────────────────────────────────
@@ -233,8 +233,8 @@ const ScanLabPage = () => {
         <div className="flex items-center justify-between max-w-xs mx-auto">
           {steps.map((s) => (
             <div key={s.id} className="flex flex-col items-center gap-1.5">
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-500 ${currentStep >= s.id ? "bg-[#263C92] text-white shadow-lg" : "bg-slate-100 text-slate-300"}`}>
-                {currentStep > s.id ? <CheckCircle2 size={14} /> : s.icon}
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-500 ${currentStep >= s.id ? "bg-[#263C92] text-white shadow-lg" : "bg-slate-100 text-slate-300"}`}>
+                {currentStep > s.id ? <CheckCircle2 size={20} /> : s.icon}
               </div>
               <span className={`text-[8px] font-black uppercase tracking-tighter ${currentStep >= s.id ? "text-[#263C92]" : "text-slate-300"}`}>{s.title}</span>
             </div>
@@ -256,7 +256,7 @@ const ScanLabPage = () => {
                 </div>
 
                 {/* Camera Preview */}
-                <div className="relative w-full max-w-[320px] aspect-[1.58/1] shadow-2xl ring-8 ring-white bg-slate-900 overflow-hidden rounded-[32px] transition-all duration-500">
+                <div className="relative w-full max-w-[320px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[560px] aspect-[1.58/1] shadow-2xl ring-8 ring-white bg-slate-900 overflow-hidden rounded-[32px] transition-all duration-500">
                   <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`} />
 
 
@@ -277,7 +277,7 @@ const ScanLabPage = () => {
                 <button
                   onClick={handleScanKTM}
                   disabled={isLoading}
-                  className={`mt-8 w-full max-w-[320px] py-5 rounded-[24px] font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isLoading
+                  className={`mt-8 w-full max-w-[320px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[560px] py-5 rounded-[24px] font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isLoading
                     ? "bg-slate-200 text-slate-400 cursor-wait"
                     : "bg-[#263C92] text-white shadow-xl shadow-blue-900/20 active:scale-95"
                     }`}
@@ -313,7 +313,7 @@ const ScanLabPage = () => {
 
                 {/* Info Banner */}
                 {scanData && (
-                  <div className="w-full max-w-[300px] bg-blue-50 border border-blue-100 rounded-2xl p-3 mb-6 flex items-center gap-3">
+                  <div className="w-full max-w-[260px] sm:max-w-[320px] md:max-w-[400px] lg:max-w-[440px] bg-blue-50 border border-blue-100 rounded-2xl p-3 mb-6 flex items-center gap-3">
                     <div className="w-8 h-8 bg-[#263C92] rounded-xl flex items-center justify-center shrink-0">
                       <CheckCircle2 size={14} className="text-white" />
                     </div>
@@ -325,7 +325,7 @@ const ScanLabPage = () => {
                 )}
 
                 {/* Camera Preview - Portrait shape */}
-                <div className="relative w-full max-w-[260px] aspect-[3/4] shadow-2xl ring-8 ring-white bg-slate-900 overflow-hidden rounded-[60px] transition-all duration-500">
+                <div className="relative w-full max-w-[260px] sm:max-w-[320px] md:max-w-[400px] lg:max-w-[440px] aspect-[3/4] shadow-2xl ring-8 ring-white bg-slate-900 overflow-hidden rounded-[60px] transition-all duration-500">
                   <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`} />
                   <div className="absolute inset-0 flex items-center justify-center p-8">
                     <div className="w-full h-full border-2 border-dashed border-white/30 relative rounded-[80px]">
@@ -342,7 +342,7 @@ const ScanLabPage = () => {
                 <button
                   onClick={handleFaceAction}
                   disabled={isLoading}
-                  className={`mt-8 w-full max-w-[300px] py-5 rounded-[24px] font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isLoading
+                  className={`mt-8 w-full max-w-[260px] sm:max-w-[320px] md:max-w-[400px] lg:max-w-[440px] py-5 rounded-[24px] font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isLoading
                     ? "bg-slate-200 text-slate-400 cursor-wait"
                     : "bg-[#263C92] text-white shadow-xl shadow-blue-900/20 active:scale-95"
                     }`}
