@@ -3,40 +3,50 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { ArrowRightOnRectangleIcon, Bars3Icon, XMarkIcon, BellIcon, UserIcon, CheckIcon, ClockIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import { useState, useEffect, useRef } from "react";
+import { ArrowRightOnRectangleIcon, Bars3Icon, XMarkIcon, BellIcon, CheckIcon, ClockIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Instagram, Youtube, Globe } from "lucide-react";
+import { getMahasiswaNotifications, markNotificationDone, type Notification } from "@/lib/api";
+import { NotificationDetailModal } from "@/components/NotificationDetailModal";
 
-interface Notification {
-  id: string;
-  type: "verification" | "reminder" | "warning";
-  title: string;
-  message: string;
-  time: string;
-  status: "pending" | "done";
-  href: string;
+function formatRelativeTimeId(createdAt: string): string {
+  try {
+    const d = new Date(createdAt);
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 45) return "Baru saja";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} menit lalu`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} jam lalu`;
+    if (diffSec < 604800) return `${Math.floor(diffSec / 86400)} hari lalu`;
+    return d.toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return createdAt;
+  }
 }
 
-const initialNotifications: Notification[] = [
-  {
-    id: "n1",
-    type: "reminder",
-    title: "Jadwal Lab Hari Ini",
-    message: "Lab Komputer 1 akan digunakan oleh kelas TI-4A pukul 10:00.",
-    time: "Baru saja",
-    status: "pending",
-    href: "/jadwal",
-  },
-  {
-    id: "n2",
-    type: "warning",
-    title: "Pengumpulan Laporan",
-    message: "Ingat untuk mengunggah laporan sebelum 17:00 hari ini.",
-    time: "1 jam lalu",
-    status: "pending",
-    href: "/",
-  },
-];
+function studentNotifMeta(type: Notification["type"]) {
+  switch (type) {
+    case "booking_pending":
+      return {
+        chip: "Menunggu ACC",
+        chipClass: "bg-amber-50 text-amber-900 border-amber-100",
+      };
+    case "booking_approved":
+      return {
+        chip: "Disetujui admin",
+        chipClass: "bg-emerald-50 text-emerald-900 border-emerald-100",
+      };
+    case "booking_rejected":
+      return {
+        chip: "Ditolak admin",
+        chipClass: "bg-red-50 text-red-900 border-red-100",
+      };
+    default:
+      return {
+        chip: "Informasi",
+        chipClass: "bg-slate-50 text-slate-700 border-slate-100",
+      };
+  }
+}
 
 export default function PublicLayout({
   children,
@@ -50,9 +60,12 @@ export default function PublicLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [nim, setNim] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifDetail, setNotifDetail] = useState<Notification | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -64,11 +77,42 @@ export default function PublicLayout({
 
     const storedName = window.localStorage.getItem("smartlab_user_name");
     const storedRole = window.localStorage.getItem("smartlab_user_role");
+    const storedToken = window.localStorage.getItem("smartlab_jwt_token");
+    const storedNim = window.localStorage.getItem("smartlab_user_nim");
     if (storedName) setUserName(storedName);
     if (storedRole) setUserRole(storedRole);
+    if (storedToken) setToken(storedToken);
+    if (storedNim) setNim(storedNim);
 
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!token || userRole !== "mahasiswa" || !nim) return;
+      try {
+        const response = await getMahasiswaNotifications(token, nim);
+        setNotifications(response.notifications);
+      } catch (error) {
+        console.error("Failed to fetch notifications:", error);
+        setNotifications([]);
+      }
+    };
+
+    fetchNotifications();
+    const ms = showNotif ? 5000 : 10000;
+    const interval = setInterval(fetchNotifications, ms);
+    return () => clearInterval(interval);
+  }, [token, userRole, nim, showNotif]);
+
+  useEffect(() => {
+    if (!showNotif) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowNotif(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showNotif]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -79,6 +123,7 @@ export default function PublicLayout({
         setShowNotif(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -87,6 +132,7 @@ export default function PublicLayout({
     localStorage.removeItem("smartlab_jwt_token");
     localStorage.removeItem("smartlab_user_name");
     localStorage.removeItem("smartlab_user_role");
+    localStorage.removeItem("smartlab_user_nim");
     router.push("/auth/login");
   };
 
@@ -99,8 +145,36 @@ export default function PublicLayout({
 
   const userInitials = userName ? getInitials(userName) : "U";
   const pendingCount = notifications.filter((n) => n.status === "pending").length;
-  const handleMarkAsDone = (id: string) => {
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, status: "done" } : n)));
+
+  const orderedStudentNotifications = useMemo(() => {
+    const copy = [...notifications];
+    copy.sort((a, b) => {
+      const pa = a.status === "pending" ? 0 : 1;
+      const pb = b.status === "pending" ? 0 : 1;
+      if (pa !== pb) return pa - pb;
+      return b.id - a.id;
+    });
+    return copy;
+  }, [notifications]);
+
+  const formatNotificationTime = (createdAt: string) => {
+    try {
+      const date = new Date(createdAt);
+      return date.toLocaleString("id-ID", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" });
+    } catch {
+      return createdAt;
+    }
+  };
+
+  const handleMarkAsDone = async (id: number) => {
+    if (!token) return;
+
+    try {
+      await markNotificationDone(id, token);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, status: "done" } : n)));
+    } catch (error) {
+      console.error("Failed to mark notification done:", error);
+    }
   };
 
   // UPDATE: href sudah disesuaikan dengan Route Groups (tanpa /labvoks)
@@ -173,38 +247,108 @@ export default function PublicLayout({
                   </button>
 
                   {showNotif && (
-                    <div className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <h4 className="font-bold text-sm">Notifikasi</h4>
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Mahasiswa</span>
+                    <div
+                      role="dialog"
+                      aria-label="Notifikasi mahasiswa"
+                      className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
+                    >
+                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start gap-2">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-900">Notifikasi</h4>
+                          <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                            {pendingCount > 0
+                              ? `${pendingCount} belum dibaca · status peminjaman lab`
+                              : "Menunggu ACC, disetujui, atau ditolak"}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-1.5 leading-snug">ESC tutup · yang belum dibaca di atas</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shrink-0">Live</span>
                       </div>
-                      <div className="max-h-[300px] overflow-y-auto">
-                        {notifications.map((n) => (
-                          <div key={n.id} className={`p-4 border-b border-slate-50 transition-colors ${n.status === "done" ? "opacity-50" : "hover:bg-slate-50"}`}>
-                            <div className="flex gap-3">
-                              <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${n.type === "verification" ? "bg-amber-100 text-amber-600" : n.type === "warning" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"}`}>
-                                {n.type === "verification" ? <DocumentTextIcon className="h-4 w-4" /> : <ClockIcon className="h-4 w-4" />}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</p>
-                                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
-                                <div className="mt-3 flex flex-col gap-2">
-                                  <span className="text-[9px] text-slate-400 font-medium">{n.time}</span>
-                                  <div className="flex gap-2">
-                                    {n.status === "pending" ? (
-                                      <>
-                                        <button onClick={() => { router.push(n.href); setShowNotif(false); }} className="flex-1 py-1.5 bg-[#263C92] text-white text-[10px] font-bold rounded-lg hover:bg-blue-900 transition-colors">Lihat</button>
-                                        <button onClick={() => handleMarkAsDone(n.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100">Selesai</button>
-                                      </>
-                                    ) : (
-                                      <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase italic"><CheckIcon className="h-3 w-3" /> Dibaca</span>
+                      <div className="max-h-[350px] overflow-y-auto">
+                        {orderedStudentNotifications.length === 0 ? (
+                          <div className="p-8 text-center text-slate-400 text-sm">
+                            <p>Belum ada notifikasi</p>
+                          </div>
+                        ) : (
+                          orderedStudentNotifications.map((n) => {
+                          const meta = studentNotifMeta(n.type);
+                          const iconWrap =
+                            n.type === "booking_rejected"
+                              ? "bg-red-100 text-red-600 border border-red-200/80"
+                              : n.type === "booking_approved"
+                                ? "bg-emerald-100 text-emerald-600 border border-emerald-200/80"
+                                : n.type === "booking_pending"
+                                  ? "bg-amber-100 text-amber-600 border border-amber-200/80"
+                                  : "bg-blue-100 text-blue-600 border border-blue-200/80";
+                          return (
+                            <div key={n.id} className={`p-4 border-b border-slate-50 transition-colors ${n.status === "done" ? "opacity-55" : "hover:bg-slate-50/90"}`}>
+                              <div className="flex gap-3">
+                                <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${iconWrap}`}>
+                                  {n.type === "booking_approved" ? (
+                                    <CheckIcon className="h-4 w-4" />
+                                  ) : n.type === "booking_rejected" ? (
+                                    <XMarkIcon className="h-4 w-4" />
+                                  ) : (
+                                    <DocumentTextIcon className="h-4 w-4" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                    <span className={`text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-md border ${meta.chipClass}`}>
+                                      {meta.chip}
+                                    </span>
+                                    {n.status === "pending" && (
+                                      <span className="text-[9px] font-bold text-[#E40082] bg-[#FFF0F7] px-2 py-0.5 rounded-md border border-pink-100">Baru</span>
                                     )}
+                                  </div>
+                                  <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</p>
+                                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
+                                  {n.lab ? <p className="text-[9px] text-slate-400 mt-1 font-medium">Lab: {n.lab}</p> : null}
+                                  <div className="mt-3 flex flex-col gap-2">
+                                    <div>
+                                      <span className="text-[9px] text-slate-600 font-semibold">{formatRelativeTimeId(n.created_at)}</span>
+                                      <span className="text-[8px] text-slate-400 block mt-0.5">{formatNotificationTime(n.created_at)}</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      {n.status === "pending" ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setNotifDetail(n);
+                                              setShowNotif(false);
+                                            }}
+                                            className="flex-1 py-1.5 bg-[#263C92] text-white text-[10px] font-bold rounded-lg hover:bg-blue-900 transition-colors"
+                                          >
+                                            Detail
+                                          </button>
+                                          <button type="button" onClick={() => handleMarkAsDone(n.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100">Selesai</button>
+                                        </>
+                                      ) : (
+                                        <div className="flex flex-wrap items-center gap-2 w-full">
+                                          <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase italic">
+                                            <CheckIcon className="h-3 w-3" /> Dibaca
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setNotifDetail(n);
+                                              setShowNotif(false);
+                                            }}
+                                            className="text-[10px] font-bold text-[#263C92] hover:underline"
+                                          >
+                                            Lihat detail
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })
+                        )}
                       </div>
                     </div>
                   )}
@@ -315,6 +459,14 @@ export default function PublicLayout({
           </div>
         </div>
       </footer>
+
+      <NotificationDetailModal
+        notification={notifDetail}
+        onClose={() => setNotifDetail(null)}
+        onOpenRelatedPage={(href) => router.push(href)}
+        defaultRelatedHref="/jadwal"
+        relatedButtonLabel="Buka halaman terkait"
+      />
     </div>
   );
 }

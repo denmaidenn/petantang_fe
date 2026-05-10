@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
@@ -23,13 +24,46 @@ import {
   Monitor,
   Coffee,
 } from "lucide-react";
-import { getPublicJadwal, Schedule, getPublicStatus, LabStatusResponse } from "@/lib/api";
+import {
+  getPublicJadwal,
+  getPublicLabs,
+  Schedule,
+  getPublicStatus,
+  LabStatusResponse,
+  Peminjaman,
+  type Lab,
+} from "@/lib/api";
+
+/** Query untuk halaman booking — tanggal sel kolom + slot waktu (harus sama dengan jadwal booking). */
+function buildBookingHref(columnDate: Date, slotStart: string, slotEnd: string, gedungFilter: string) {
+  const y = columnDate.getFullYear();
+  const m = String(columnDate.getMonth() + 1).padStart(2, "0");
+  const day = String(columnDate.getDate()).padStart(2, "0");
+  const tanggal = `${y}-${m}-${day}`;
+  const q = new URLSearchParams({
+    tanggal,
+    slotStart,
+    slotEnd,
+  });
+  if (gedungFilter && gedungFilter !== "Semua Gedung") {
+    q.set("gedung", gedungFilter);
+  }
+  return `/booking?${q.toString()}`;
+}
+
+function startOfLocalDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
 
 export default function MonitoringLabVokasi() {
+  const router = useRouter();
   const [selectedGedung, setSelectedGedung] = useState("Semua Gedung");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [activeModal, setActiveModal] = useState<null | (Schedule & { status: string; waktu: string; peminjam: string })>(null);
   const [jadwal, setJadwal] = useState<Schedule[]>([]);
+  const [publicLabs, setPublicLabs] = useState<Lab[] | null>(null);
   const [labStatus, setLabStatus] = useState<LabStatusResponse | null>(null);
   const [loadingJadwal, setLoadingJadwal] = useState(true);
   const [jadwalError, setJadwalError] = useState<string | null>(null);
@@ -90,33 +124,65 @@ export default function MonitoringLabVokasi() {
       { start: "11:00", end: "13:00" },
       { start: "13:00", end: "15:00" },
       { start: "15:00", end: "17:00" },
-      { start: "17:00", end: "18:00" },
-      { start: "18:00", end: "20:00" },
+      { start: "17:00", end: "19:00" },
+      { start: "19:00", end: "21:00" },
     ],
     []
   );
 
-  // --- BACKEND JADWAL ---
+  /** Baris jadwal semester aktif (non-arsip, sama tipe & tahun dengan entri terbaru). */
+  const schedulesForGrid = useMemo(() => {
+    const active = jadwal.filter((j) => !j.isArchived);
+    if (active.length === 0) return [];
+    const anchor = active[active.length - 1];
+    return active.filter(
+      (j) => j.tipeSemester === anchor.tipeSemester && j.tahunAjaran === anchor.tahunAjaran,
+    );
+  }, [jadwal]);
+
+  const PUBLIC_POLL_MS = 15000;
+
+  // --- BACKEND JADWAL (jadwal jarang berubah); status & labs di-poll seperti dashboard ---
   useEffect(() => {
     let mounted = true;
 
-    Promise.all([getPublicJadwal(), getPublicStatus()])
-      .then(([jadwalData, statusData]) => {
-        if (!mounted) return;
-        setJadwal(jadwalData);
-        setLabStatus(statusData);
-      })
-      .catch((err) => {
-        if (!mounted) return;
-        setJadwalError(err?.message || "Gagal memuat jadwal");
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoadingJadwal(false);
-      });
+    const loadAll = () =>
+      Promise.all([getPublicJadwal(), getPublicStatus(), getPublicLabs()])
+        .then(([jadwalData, statusData, labsData]) => {
+          if (!mounted) return;
+          setJadwal(jadwalData);
+          setLabStatus(statusData);
+          setPublicLabs(labsData);
+          setJadwalError(null);
+        })
+        .catch((err) => {
+          if (!mounted) return;
+          setJadwalError(err?.message || "Gagal memuat jadwal");
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingJadwal(false);
+        });
+
+    loadAll();
+
+    const pollStatus = () => {
+      Promise.all([getPublicStatus(), getPublicLabs()])
+        .then(([statusData, labsData]) => {
+          if (!mounted) return;
+          setLabStatus(statusData);
+          setPublicLabs(labsData);
+        })
+        .catch(() => {
+          /* biarkan data lama; error utama dari load pertama */
+        });
+    };
+
+    const interval = setInterval(pollStatus, PUBLIC_POLL_MS);
 
     return () => {
       mounted = false;
+      clearInterval(interval);
     };
   }, []);
 
@@ -124,36 +190,102 @@ export default function MonitoringLabVokasi() {
 
   const timeToMin = (t: string) => {
     if (!t) return 0;
-    const [h, m] = t.split(':').map(Number);
+    const [h, m] = t.split(":").map(Number);
     return h * 60 + m;
   };
 
-  const getScheduleStatus = (s: Schedule, colDate?: Date): string => {
-    // 1. Dapatkan status dasar dari Database jadwal
-    let baseStatus = s.status || "tersedia";
-
-    // 2. Tindih dengan status Live Check-in face-recognition bila relevan
-    const now = new Date();
-    const isLabUsed = labStatus?.peminjaman?.some(p => p.lab === s.lab && p.status === "aktif");
-    const isLabWaiting = labStatus?.peminjaman_pending?.some(p => p.lab === s.lab && p.status === "menunggu");
-
-    const isSameDay = colDate ? (colDate.toDateString() === now.toDateString()) : true;
-
-    if (isSameDay) {
-      if (isLabUsed) return "digunakan";
-      if (isLabWaiting) return "menunggu";
-    }
-
-    return baseStatus as string;
+  /** Samakan dengan dashboard: cocokkan hari kolom ke field jadwal (bukan hanya tanggal). */
+  const columnMatchesScheduleDay = (schedule: Schedule, columnDate: Date) => {
+    const col = columnDate.toLocaleDateString("id-ID", { weekday: "long" }).toLowerCase();
+    return schedule.hari.trim().toLowerCase() === col;
   };
 
-  const uniqueGedungs = useMemo(() => Array.from(new Set(jadwal.map(j => j.gedung))).filter(Boolean).sort(), [jadwal]);
+  /**
+   * Peminjaman aktif relevan untuk sel ini bila: tanggal sama, nama lab sama, hari kolom = jadwal.hari,
+   * dan waktu check-in berada di dalam rentang slot (batas akhir inklusif), atau sedikit lebih awal (antre sebelum slot).
+   */
+  const isLoanRelevantToSchedule = (loan: Peminjaman, schedule: Schedule, columnDate: Date) => {
+    if (loan.lab !== schedule.lab || !loan.waktu_masuk) return false;
+
+    const loanDate = new Date(loan.waktu_masuk);
+    if (Number.isNaN(loanDate.getTime())) return false;
+
+    const loanDay = new Date(loanDate);
+    loanDay.setHours(0, 0, 0, 0);
+    const colDay = new Date(columnDate);
+    colDay.setHours(0, 0, 0, 0);
+    if (loanDay.getTime() !== colDay.getTime()) return false;
+
+    if (!columnMatchesScheduleDay(schedule, columnDate)) return false;
+
+    const loanTime = loanDate.getHours() * 60 + loanDate.getMinutes();
+    const startTime = timeToMin(normalizeTime(schedule.jamMulai));
+    const endTime = timeToMin(normalizeTime(schedule.jamSelesai));
+    const EARLY_MIN = 120;
+    const insideSlot = loanTime >= startTime && loanTime <= endTime;
+    const earlyQueue = loanTime >= startTime - EARLY_MIN && loanTime < startTime;
+    return insideSlot || earlyQueue;
+  };
+
+  const norm = (s: string) => s.trim().toLowerCase();
+
+  /** Selaras dashboard (`labByName`): utama nama lab; gedung dipakai jika ada lebih dari satu lab dengan nama sama. */
+  const isLabMaintenanceFromKelola = (schedule: Schedule) => {
+    if (!publicLabs?.length) return false;
+    const candidates = publicLabs.filter(
+      (l) =>
+        l.name === schedule.lab &&
+        (l.statusOverride === "Maintenance" ||
+          String(l.statusOverride || "").toLowerCase() === "maintenance"),
+    );
+    if (candidates.length === 0) return false;
+    if (candidates.length === 1) return true;
+    return candidates.some((l) => norm(l.location) === norm(schedule.gedung));
+  };
+
+  const getCellStatus = (schedule: Schedule, columnDate: Date) => {
+    if (isLabMaintenanceFromKelola(schedule)) {
+      return { status: "maintenance", loan: null } as const;
+    }
+
+    const baseStatus = schedule.status?.toLowerCase() || "tersedia";
+
+    const activeLoan = labStatus?.peminjaman?.find((loan) =>
+      isLoanRelevantToSchedule(loan, schedule, columnDate)
+    );
+
+    const pendingLoan = labStatus?.peminjaman_pending?.find((loan) =>
+      isLoanRelevantToSchedule(loan, schedule, columnDate)
+    );
+
+    if (activeLoan) {
+      return { status: "digunakan", loan: activeLoan } as const;
+    }
+
+    if (pendingLoan) {
+      return { status: "menunggu", loan: pendingLoan } as const;
+    }
+
+    if (baseStatus === "maintenance" || baseStatus === "maintance") {
+      return { status: "maintenance", loan: null } as const;
+    }
+
+    return {
+      status: baseStatus === "digunakan" || baseStatus === "menunggu" ? baseStatus : "tersedia",
+      loan: null,
+    } as const;
+  };
+
+  const uniqueGedungs = useMemo(
+    () => Array.from(new Set(schedulesForGrid.map((j) => j.gedung))).filter(Boolean).sort(),
+    [schedulesForGrid],
+  );
 
   const scheduleMap = useMemo(() => {
     // Array to support multiple overlapping labs per timeslot per day
     const map: Record<string, { item: Schedule; rowSpan: number }[]> = {};
 
-    const filtered = jadwal.filter(
+    const filtered = schedulesForGrid.filter(
       (s) => selectedGedung === "Semua Gedung" || s.gedung === selectedGedung
     );
 
@@ -203,7 +335,7 @@ export default function MonitoringLabVokasi() {
     });
 
     return map;
-  }, [jadwal, selectedGedung, hariKerja, jamKuliah]);
+  }, [schedulesForGrid, selectedGedung, hariKerja, jamKuliah]);
 
 
   const containerVariants = {
@@ -528,6 +660,9 @@ export default function MonitoringLabVokasi() {
 
                       {hariKerja.map((hari, hIdx) => {
                         const cellArray = scheduleMap[`${idx}-${hIdx}`];
+                        const columnDayStart = startOfLocalDay(hari.date);
+                        const todayStart = startOfLocalDay(new Date());
+                        const isBookingPastDate = columnDayStart < todayStart;
 
                         // if cell is completely empty or just undefined
                         if (!cellArray || cellArray.length === 0) {
@@ -573,8 +708,19 @@ export default function MonitoringLabVokasi() {
                                     </span>
                                   </div>
                                   <button
-                                    onClick={() => (window.location.href = "/booking")}
-                                    className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-[#263C92] py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase hover:bg-[#263C92] hover:text-white transition-all active:scale-95 shadow-sm"
+                                    type="button"
+                                    disabled={isBookingPastDate}
+                                    title={
+                                      isBookingPastDate
+                                        ? "Booking hanya untuk tanggal hari ini ke depan"
+                                        : "Booking untuk tanggal kolom ini dan slot waktu ini"
+                                    }
+                                    onClick={() =>
+                                      router.push(
+                                        buildBookingHref(hari.date, j.start, j.end, selectedGedung),
+                                      )
+                                    }
+                                    className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-[#263C92] py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase hover:bg-[#263C92] hover:text-white transition-all active:scale-95 shadow-sm disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-white disabled:hover:text-[#263C92]"
                                   >
                                     <CalendarPlus className="w-3.5 h-3.5" /> Booking
                                   </button>
@@ -603,7 +749,7 @@ export default function MonitoringLabVokasi() {
                           >
                             <div className="flex flex-col gap-2 h-full">
                               {cellArray.filter(c => c.rowSpan > 0).map((cell, cIdx) => {
-                                const status = getScheduleStatus(cell.item, hariKerja[hIdx]?.date).toLowerCase() as string;
+                                const { status, loan } = getCellStatus(cell.item, hari.date);
                                 const waktu = `${normalizeTime(cell.item.jamMulai)} - ${normalizeTime(cell.item.jamSelesai)} WIB`;
 
                                 return (
@@ -618,13 +764,13 @@ export default function MonitoringLabVokasi() {
                                           {cell.item.lab}
                                         </span>
                                         <div
-                                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full shrink-0 ${status === "digunakan"
-                                            ? "bg-rose-50 text-rose-600"
+                                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full shrink-0 border ${status === "digunakan"
+                                            ? "bg-blue-50 text-blue-600 border-blue-100"
                                             : status === "menunggu"
-                                              ? "bg-amber-50 text-amber-600"
-                                              : (status === "maintenance" || status === "maintance")
-                                                ? "bg-slate-100 text-slate-500 border border-slate-200"
-                                                : "bg-emerald-50 text-emerald-600"
+                                              ? "bg-amber-50 text-amber-600 border-amber-100"
+                                              : status === "maintenance"
+                                                ? "bg-red-50 text-red-600 border-red-100"
+                                                : "bg-emerald-50 text-emerald-600 border-emerald-100"
                                             }`}
                                         >
                                           <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-tighter">
@@ -641,6 +787,12 @@ export default function MonitoringLabVokasi() {
                                           {cell.item.prodi} - {cell.item.kelas}
                                         </span>
                                       </div>
+                                      <div className="flex items-center gap-2 text-slate-400">
+                                        <MapPin className="w-3 h-3 shrink-0" />
+                                        <span className="text-[10px] font-normal truncate">
+                                          {cell.item.gedung}
+                                        </span>
+                                      </div>
                                     </div>
 
                                     <div className="mt-2 pt-3 border-t border-slate-50 flex flex-col gap-2">
@@ -652,8 +804,7 @@ export default function MonitoringLabVokasi() {
                                       </div>
                                       <button
                                         onClick={() => {
-                                          const activeSesi = labStatus?.peminjaman?.find(p => p.lab === cell.item.lab && p.status === "aktif");
-                                          const peminjamVal = activeSesi ? activeSesi.nama : "Kelas Umum";
+                                          const peminjamVal = loan?.nama || "Kelas Umum";
 
                                           setActiveModal({
                                             ...cell.item,
@@ -685,7 +836,7 @@ export default function MonitoringLabVokasi() {
               {[
                 {
                   label: "Digunakan",
-                  color: "bg-rose-500",
+                  color: "bg-blue-500",
                   desc: "Sedang dipakai",
                 },
                 {
@@ -700,7 +851,7 @@ export default function MonitoringLabVokasi() {
                 },
                 {
                   label: "Maintenance",
-                  color: "bg-slate-600",
+                  color: "bg-red-500",
                   desc: "Perbaikan",
                 },
                 {
@@ -757,16 +908,21 @@ export default function MonitoringLabVokasi() {
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-[10px] font-bold text-[#E40082] bg-[#FFF0F7] px-3 py-1 rounded-full uppercase tracking-widest">
+                    {activeModal.lab}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-widest">
                     {activeModal.gedung}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest ${activeModal.status === "digunakan"
-                      ? "bg-rose-50 text-rose-600"
+                    className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest border ${activeModal.status === "digunakan"
+                      ? "bg-blue-50 text-blue-600 border-blue-100"
                       : activeModal.status === "menunggu"
-                        ? "bg-amber-50 text-amber-600"
+                        ? "bg-amber-50 text-amber-600 border-amber-100"
                         : activeModal.status === "tersedia"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-slate-50 text-slate-400"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                          : activeModal.status === "maintenance"
+                            ? "bg-red-50 text-red-600 border-red-100"
+                            : "bg-slate-50 text-slate-400 border-slate-200"
                       }`}
                   >
                     {activeModal.status}

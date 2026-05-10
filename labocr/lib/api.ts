@@ -288,6 +288,23 @@ export interface PeminjamanHistory {
   catatan?: string | null;
 }
 
+export interface Notification {
+  id: number;
+  type:
+    | "booking_request"
+    | "booking_approved"
+    | "booking_rejected"
+    | "booking_pending"
+    | "admin_action_approve"
+    | "admin_action_reject";
+  title: string;
+  message: string;
+  status: "pending" | "done";
+  created_at: string;
+  lab?: string;
+  data?: Record<string, unknown>;
+}
+
 // Raw API response types (untouched casing / naming from backend)
 interface ApiLab {
   id: number;
@@ -419,11 +436,48 @@ export function getPublicStatus(): Promise<LabStatusResponse> {
   return fetchAPI<LabStatusResponse>("/api/public/status");
 }
 
+export interface PublicLabRow {
+  id: number;
+  name: string;
+  location: string;
+  op_start: string | null;
+  op_end: string | null;
+  status_override: string | null;
+}
+
+/**
+ * Public lab list (no auth) — untuk sinkron status maintenance dengan halaman jadwal publik.
+ */
+export async function getPublicLabs(): Promise<Lab[]> {
+  const raw = await fetchAPI<PublicLabRow[]>("/api/public/labs");
+  return raw.map((item) =>
+    mapLabFromApi({
+      id: item.id,
+      name: item.name,
+      location: item.location,
+      capacity: 0,
+      op_start: item.op_start ?? "08:00",
+      op_end: item.op_end ?? "20:00",
+      use_start: item.op_start ?? "08:00",
+      use_end: item.op_end ?? "20:00",
+      equipment: [],
+      status_override: item.status_override,
+    }),
+  );
+}
+
 /**
  * Public jadwal endpoint (no auth required).
  */
-export async function getPublicJadwal(includeArchived: boolean = false): Promise<Schedule[]> {
-  const raw = await fetchAPI<ApiSchedule[]>(`/api/public/jadwal?archived=${includeArchived}`);
+export async function getPublicJadwal(
+  includeArchived: boolean = false,
+  opts?: { tipeSemester?: string; tahunAjaran?: string },
+): Promise<Schedule[]> {
+  const q = new URLSearchParams();
+  q.set("archived", String(includeArchived));
+  if (opts?.tipeSemester) q.set("tipe_semester", opts.tipeSemester);
+  if (opts?.tahunAjaran) q.set("tahun_ajaran", opts.tahunAjaran);
+  const raw = await fetchAPI<ApiSchedule[]>(`/api/public/jadwal?${q.toString()}`);
   return raw.map(mapScheduleFromApi);
 }
 
@@ -536,6 +590,38 @@ export function getPeminjamanHistory(
   if (prodi) params.set("prodi", prodi);
   const qs = params.toString();
   return fetchAPI<PeminjamanHistory[]>(`/api/reports/peminjaman${qs ? `?${qs}` : ""}`, { token });
+}
+
+/**
+ * [ADMIN] Get notifications for admin dashboard.
+ */
+export function getAdminNotifications(token: string): Promise<{ notifications: Notification[] }> {
+  return fetchAPI<{ notifications: Notification[] }>("/api/notifications", { token });
+}
+
+/**
+ * [MAHASISWA] Get notifications for mahasiswa.
+ */
+export function getMahasiswaNotifications(token: string, nim?: string | null): Promise<{ notifications: Notification[] }> {
+  const qs = nim ? `?nim=${encodeURIComponent(nim)}` : "";
+  return fetchAPI<{ notifications: Notification[] }>(`/api/notifications/mahasiswa${qs}`, { token });
+}
+
+/**
+ * Mark a notification as done.
+ */
+export function markNotificationDone(notifId: number, token: string): Promise<{ success: boolean; message: string }> {
+  return fetchAPI<{ success: boolean; message: string }>(`/api/notifications/${notifId}/mark-done`, {
+    method: "POST",
+    token,
+  });
+}
+
+/**
+ * Get pending notifications (public, no auth).
+ */
+export function getPendingNotifications(): Promise<Notification[]> {
+  return fetchAPI<Notification[]>("/api/public/notifications/pending");
 }
 
 // ─── Error Message Helper ────────────────────────────────

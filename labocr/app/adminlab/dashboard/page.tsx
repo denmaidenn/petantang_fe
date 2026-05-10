@@ -254,6 +254,12 @@ export default function DashboardPage() {
     },
   ], [labs.length, peminjaman, activeCount, pendingCount]);
 
+  const labByName = useMemo(() => {
+    const m = new Map<string, Lab>();
+    labs.forEach((l) => m.set(l.name, l));
+    return m;
+  }, [labs]);
+
   return (
     <div className="min-h-screen w-full bg-[#F8FAFC] pb-12 font-sans antialiased">
       {/* HEADER */}
@@ -333,9 +339,14 @@ export default function DashboardPage() {
                         </div>
                       </td>
                       <td className="px-8 py-5">
-                        <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-amber-700 shadow-sm border border-amber-100">
-                          {p.lab}
-                        </span>
+                        <div>
+                          <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-amber-700 shadow-sm border border-amber-100">
+                            {p.lab}
+                          </span>
+                          {labByName.get(p.lab)?.statusOverride === "Maintenance" && (
+                            <p className="text-[9px] text-amber-700 font-bold mt-1.5">Lab: Maintenance — pertimbangkan tolak ACC</p>
+                          )}
+                        </div>
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-1.5 text-amber-700">
@@ -435,9 +446,15 @@ export default function DashboardPage() {
                       </td>
                       <td className="px-8 py-5 text-slate-600 font-bold text-sm">{p.lab}</td>
                       <td className="px-8 py-5">
-                        <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-emerald-100 text-emerald-600">
-                          Aktif
-                        </span>
+                        {labByName.get(p.lab)?.statusOverride === "Maintenance" ? (
+                          <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-slate-200 text-slate-800">
+                            Maintenance
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-emerald-100 text-emerald-600">
+                            Aktif
+                          </span>
+                        )}
                       </td>
                       <td className="px-8 py-5 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -474,6 +491,7 @@ export default function DashboardPage() {
             {labs.map((lab) => {
               const activePeminjaman = peminjaman.filter((p) => p.lab === lab.name);
               const isActive = activePeminjaman.length > 0;
+              const isMaintenance = lab.statusOverride === "Maintenance";
               return (
                 <div key={lab.id} className="bg-white border border-slate-200 rounded-[2rem] p-7 shadow-sm flex flex-col hover:shadow-md transition-all">
                   <div className="flex justify-between items-start mb-5">
@@ -481,11 +499,16 @@ export default function DashboardPage() {
                       <h3 className="font-bold text-xl text-[#263C92]">{lab.name}</h3>
                       <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">{lab.location}</p>
                     </div>
-                    <span className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase border ${isActive
-                      ? "bg-blue-50 text-blue-600 border-blue-100"
-                      : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                      }`}>
-                      {isActive ? "Digunakan" : "Tersedia"}
+                    <span
+                      className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase border ${
+                        isMaintenance
+                          ? "bg-slate-100 text-slate-700 border-slate-200"
+                          : isActive
+                            ? "bg-blue-50 text-blue-600 border-blue-100"
+                            : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                      }`}
+                    >
+                      {isMaintenance ? "Maintenance" : isActive ? "Digunakan" : "Tersedia"}
                     </span>
                   </div>
 

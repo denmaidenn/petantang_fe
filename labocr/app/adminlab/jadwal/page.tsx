@@ -154,6 +154,29 @@ export default function JadwalAdminCalendarPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const ALLOWED_DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+    const hm = (s: string) => (s && s.length >= 5 ? s.slice(0, 5) : s);
+
+    if (!ALLOWED_DAYS.includes(formData.hari)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Hari tidak valid",
+        text: "Jadwal operasional laboratorium hanya Senin hingga Sabtu.",
+      });
+      return;
+    }
+
+    const jm = hm(formData.jamMulai);
+    const js = hm(formData.jamSelesai);
+    if (jm < "07:00" || js > "20:00" || jm >= js) {
+      Swal.fire({
+        icon: "warning",
+        title: "Jam tidak valid",
+        text: "Setiap slot harus berada dalam jam layanan 07:00–20:00 WIB dan jam mulai harus sebelum jam selesai.",
+      });
+      return;
+    }
+
     // Validasi overlap untuk lab + hari sama
     const conflict = jadwal.find((item) => {
       if (item.isArchived) return false;

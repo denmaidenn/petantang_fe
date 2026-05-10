@@ -30,6 +30,9 @@ export default function LoginPage() {
       localStorage.setItem("smartlab_jwt_token", data.access_token);
       localStorage.setItem("smartlab_user_name", data.name || formData.username);
       localStorage.setItem("smartlab_user_role", data.role);
+      if (data.role === "mahasiswa") {
+        localStorage.setItem("smartlab_user_nim", formData.username);
+      }
       if (data.role === "admin") {
         localStorage.setItem("admin_jwt_token", data.access_token);
       }

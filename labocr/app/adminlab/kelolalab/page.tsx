@@ -12,7 +12,15 @@ import {
   DocumentTextIcon, InformationCircleIcon,
   ArrowTopRightOnSquareIcon // Ikon baru untuk button laporan
 } from "@heroicons/react/24/outline";
-import { getLabs, createLab, updateLab, deleteLab, type Lab as ApiLab, type ApiError } from "@/lib/api";
+import {
+  getLabs,
+  createLab,
+  updateLab,
+  deleteLab,
+  getLabStatus,
+  type Lab as ApiLab,
+  type ApiError,
+} from "@/lib/api";
 
 import Swal from "sweetalert2";
 
@@ -72,7 +80,7 @@ export default function KelolaLabFinal() {
 
   const [formData, setFormData] = useState({
     name: "", location: "Gedung Delta", capacity: 0, days: "Senin",
-    opStart: "07:00", opEnd: "18:00", useStart: "08:00", useEnd: "11:00"
+    opStart: "08:00", opEnd: "20:00", useStart: "08:00", useEnd: "11:00"
   });
   const [isCustomLocation, setIsCustomLocation] = useState(false);
   const [customLocation, setCustomLocation] = useState("");
@@ -92,14 +100,25 @@ export default function KelolaLabFinal() {
       setFetchError(null);
 
       try {
-        const labsFromApi = await getLabs(token);
-        // Map API shape into UI shape; keep existing frontend-only fields as default
+        const [labsFromApi, statusData] = await Promise.all([getLabs(token), getLabStatus(token)]);
+        const queue = [...(statusData.peminjaman || []), ...(statusData.peminjaman_pending || [])];
         setLabs(
-          labsFromApi.map((lab) => ({
-            ...lab,
-            days: "Senin, Selasa, Rabu, Kamis, Jumat",
-            currentBorrower: undefined,
-          })),
+          labsFromApi.map((lab) => {
+            const hit = queue.find((p) => p.lab === lab.name);
+            return {
+              ...lab,
+              days: "Senin, Selasa, Rabu, Kamis, Jumat, Sabtu",
+              currentBorrower: hit
+                ? {
+                    nama: hit.nama,
+                    nim: hit.nim,
+                    prodi: "",
+                    kelas: "",
+                    jamMasuk: hit.waktu_masuk?.slice(11, 16) || "",
+                  }
+                : undefined,
+            };
+          }),
         );
         if (labsFromApi.length > 0) {
           setActiveGedung(labsFromApi[0].location);
@@ -178,7 +197,7 @@ export default function KelolaLabFinal() {
         Swal.fire({ icon: "success", title: "Berhasil", text: "Data lab berhasil diperbarui!" });
       } else {
         const created = await createLab(payload, token);
-        setLabs((prev) => [...prev, { ...created, days: "Senin, Selasa, Rabu, Kamis, Jumat" }]);
+        setLabs((prev) => [...prev, { ...created, days: "Senin, Selasa, Rabu, Kamis, Jumat, Sabtu" }]);
         Swal.fire({ icon: "success", title: "Berhasil", text: "Lab baru berhasil ditambahkan!" });
       }
       setIsModalFormOpen(false);

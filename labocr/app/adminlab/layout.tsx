@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect, useRef, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BellIcon,
@@ -13,25 +13,60 @@ import {
   Bars3Icon,
   XMarkIcon,
   UserIcon,
-  Cog6ToothIcon,
   ChartBarIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   CheckIcon,
 } from "@heroicons/react/24/outline";
+import { getAdminNotifications, markNotificationDone, type Notification } from "@/lib/api";
+import { NotificationDetailModal } from "@/components/NotificationDetailModal";
 
-// --- DATA DUMMY NOTIFIKASI ---
-interface Notification {
-  id: string;
-  type: "verification" | "reminder" | "warning";
-  title: string;
-  message: string;
-  time: string;
-  status: "pending" | "done";
-  href: string;
+function formatRelativeTimeId(createdAt: string): string {
+  try {
+    const d = new Date(createdAt);
+    const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (diffSec < 45) return "Baru saja";
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} menit lalu`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} jam lalu`;
+    if (diffSec < 604800) return `${Math.floor(diffSec / 86400)} hari lalu`;
+    return d.toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return createdAt;
+  }
 }
 
-const initialNotifications: Notification[] = [];
+function adminNotifVisual(type: Notification["type"]) {
+  switch (type) {
+    case "booking_request":
+      return {
+        wrap: "bg-amber-100 text-amber-600 border border-amber-200/80",
+        chip: "Permintaan masuk",
+        chipClass: "bg-amber-50 text-amber-800 border border-amber-100",
+        Icon: DocumentTextIcon,
+      };
+    case "admin_action_approve":
+      return {
+        wrap: "bg-emerald-100 text-emerald-600 border border-emerald-200/80",
+        chip: "Disetujui",
+        chipClass: "bg-emerald-50 text-emerald-800 border border-emerald-100",
+        Icon: CheckIcon,
+      };
+    case "admin_action_reject":
+      return {
+        wrap: "bg-red-100 text-red-600 border border-red-200/80",
+        chip: "Ditolak",
+        chipClass: "bg-red-50 text-red-800 border border-red-100",
+        Icon: XMarkIcon,
+      };
+    default:
+      return {
+        wrap: "bg-blue-100 text-blue-600 border border-blue-200/80",
+        chip: "Notifikasi",
+        chipClass: "bg-blue-50 text-blue-800 border border-blue-100",
+        Icon: BellIcon,
+      };
+  }
+}
 
 const menuItems = [
   { name: "Dashboard", icon: HomeIcon, href: "/adminlab/dashboard" },
@@ -39,7 +74,6 @@ const menuItems = [
   { name: "Verifikasi KTM", icon: DocumentTextIcon, href: "/adminlab/verifikasi-ktm" },
   { name: "Jadwal Semester", icon: CalendarIcon, href: "/adminlab/jadwal" },
   { name: "Laporan", icon: ChartBarIcon, href: "/adminlab/laporan" },
-  { name: "Pengaturan", icon: Cog6ToothIcon, href: "/adminlab/pengaturan" },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -50,15 +84,38 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifDetail, setNotifDetail] = useState<Notification | null>(null);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const pendingCount = notifications.filter(n => n.status === "pending").length;
 
-  const handleMarkAsDone = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: "done" } : n));
+  const orderedAdminNotifications = useMemo(() => {
+    const copy = [...notifications];
+    const priority = (n: Notification) => {
+      if (n.status !== "pending") return 2;
+      if (n.type === "booking_request") return 0;
+      return 1;
+    };
+    copy.sort((a, b) => {
+      const d = priority(a) - priority(b);
+      if (d !== 0) return d;
+      return b.id - a.id;
+    });
+    return copy;
+  }, [notifications]);
+
+  const handleMarkAsDone = async (id: number) => {
+    const token = localStorage.getItem("admin_jwt_token");
+    if (!token) return;
+    try {
+      await markNotificationDone(id, token);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: "done" } : n));
+    } catch (err) {
+      console.error("Failed to mark notification as done:", err);
+    }
   };
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -103,6 +160,35 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         router.replace("/auth/login");
       });
   }, [router]);
+
+  // Fetch notifications from API with polling (lebih cepat saat panel terbuka)
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      const token = localStorage.getItem("admin_jwt_token");
+      if (!token) return;
+
+      try {
+        const response = await getAdminNotifications(token);
+        setNotifications(response.notifications);
+      } catch (err) {
+        console.error("Failed to fetch notifications:", err);
+      }
+    };
+
+    fetchNotifications();
+    const ms = showNotif ? 5000 : 10000;
+    const interval = setInterval(fetchNotifications, ms);
+    return () => clearInterval(interval);
+  }, [showNotif]);
+
+  useEffect(() => {
+    if (!showNotif) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowNotif(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showNotif]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -239,40 +325,94 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               </button>
 
               {showNotif && (
-                <div className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-                  <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <h4 className="font-bold text-sm">Notifikasi</h4>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Terbaru</span>
+                <div
+                  role="dialog"
+                  aria-label="Notifikasi admin"
+                  className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
+                >
+                  <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start gap-2">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900">Notifikasi</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                        {pendingCount > 0
+                          ? `${pendingCount} belum dibaca`
+                          : "Permintaan Mahasiswa & Riwayat Tindakan Admin"}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded shrink-0 border border-blue-100">Live</span>
                   </div>
                   <div className="max-h-[350px] overflow-y-auto">
-                    {notifications.map((n) => (
-                      <div key={n.id} className={`p-4 border-b border-slate-50 transition-colors ${n.status === 'done' ? 'opacity-50' : 'hover:bg-slate-50'}`}>
-                        <div className="flex gap-3">
-                          <div className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 ${n.type === 'verification' ? 'bg-amber-100 text-amber-600' : n.type === 'warning' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {n.type === 'verification' ? <DocumentTextIcon className="h-4 w-4" /> : <ClockIcon className="h-4 w-4" />}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</p>
-                            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
-                            <div className="mt-3 flex flex-col gap-2">
-                              <span className="text-[9px] text-slate-400 font-medium">{n.time}</span>
-                              <div className="flex gap-2">
-                                {n.status === 'pending' ? (
-                                  <>
-                                    <button onClick={() => { router.push(n.href); setShowNotif(false); }} className="flex-1 py-1.5 bg-[#263C92] text-white text-[10px] font-bold rounded-lg hover:bg-blue-900 transition-colors">Check Detail</button>
-                                    {(n.type === 'reminder' || n.type === 'warning') && (
-                                      <button onClick={() => handleMarkAsDone(n.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100">Oke</button>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase italic"><CheckIcon className="h-3 w-3" /> Selesai</span>
+                    {orderedAdminNotifications.length > 0 ? (
+                      orderedAdminNotifications.map((n) => {
+                        const v = adminNotifVisual(n.type);
+                        const Icon = v.Icon;
+                        return (
+                        <div key={n.id} className={`p-4 border-b border-slate-50 transition-colors ${n.status === 'done' ? 'opacity-55' : 'hover:bg-slate-50/90'}`}>
+                          <div className="flex gap-3">
+                            <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${v.wrap}`}>
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                <span className={`text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-md border ${v.chipClass}`}>
+                                  {v.chip}
+                                </span>
+                                {n.status === "pending" && (
+                                  <span className="text-[9px] font-bold text-[#E40082] bg-[#FFF0F7] px-2 py-0.5 rounded-md border border-pink-100">Baru</span>
                                 )}
+                              </div>
+                              <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</p>
+                              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
+                              {n.lab && <p className="text-[9px] text-slate-400 mt-1 font-medium">Lab: {n.lab}</p>}
+                              <div className="mt-3 flex flex-col gap-1.5">
+                                <div>
+                                  <span className="text-[9px] text-slate-600 font-semibold">{formatRelativeTimeId(n.created_at)}</span>
+                                  <span className="text-[8px] text-slate-400 block mt-0.5">{new Date(n.created_at).toLocaleString("id-ID")}</span>
+                                </div>
+                                <div className="flex gap-2">
+                                  {n.status === 'pending' ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNotifDetail(n);
+                                          setShowNotif(false);
+                                        }}
+                                        className="flex-1 py-1.5 bg-[#263C92] text-white text-[10px] font-bold rounded-lg hover:bg-blue-900 transition-colors"
+                                      >
+                                        Detail
+                                      </button>
+                                      <button type="button" onClick={() => handleMarkAsDone(n.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100">Oke</button>
+                                    </>
+                                  ) : (
+                                    <div className="flex flex-wrap items-center gap-2 w-full">
+                                      <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase italic">
+                                        <CheckIcon className="h-3 w-3" /> Selesai
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNotifDetail(n);
+                                          setShowNotif(false);
+                                        }}
+                                        className="text-[10px] font-bold text-[#263C92] hover:underline"
+                                      >
+                                        Lihat detail
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
+                        );
+                      })
+                    ) : (
+                      <div className="p-8 text-center text-slate-400 text-sm">
+                        <p>Tidak ada notifikasi baru</p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               )}
@@ -290,8 +430,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
               {profileOpen && (
                 <div className="absolute right-0 mt-3 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in duration-200">
-                  <button onClick={() => { router.push("/adminlab/pengaturan"); setProfileOpen(false); }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#263C92] transition-colors"><UserIcon className="h-4 w-4" /> Edit Profil</button>
-                  <div className="h-px bg-slate-100 my-1 mx-2"></div>
                   <button onClick={() => { setShowLogoutModal(true); setProfileOpen(false); }} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><ArrowRightOnRectangleIcon className="h-4 w-4" /> Logout</button>
                 </div>
               )}
@@ -303,6 +441,14 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="pb-20 lg:pb-8">{children}</div>
         </main>
       </div>
+
+      <NotificationDetailModal
+        notification={notifDetail}
+        onClose={() => setNotifDetail(null)}
+        onOpenRelatedPage={(href) => router.push(href)}
+        defaultRelatedHref="/adminlab/dashboard"
+        relatedButtonLabel="Buka Dashboard"
+      />
     </div>
   );
 }
