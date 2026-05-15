@@ -83,6 +83,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<"all" | "unread">("all");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifDetail, setNotifDetail] = useState<Notification | null>(null);
@@ -107,6 +108,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     return copy;
   }, [notifications]);
 
+  const visibleAdminNotifications = useMemo(() => {
+    if (notifFilter === "unread") {
+      return orderedAdminNotifications.filter((n) => n.status === "pending");
+    }
+    return orderedAdminNotifications;
+  }, [notifFilter, orderedAdminNotifications]);
+
   const handleMarkAsDone = async (id: number) => {
     const token = localStorage.getItem("admin_jwt_token");
     if (!token) return;
@@ -116,6 +124,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Failed to mark notification as done:", err);
     }
+  };
+
+  const handleMarkAllAsDone = async () => {
+    const unread = notifications.filter((n) => n.status === "pending");
+    if (unread.length === 0) return;
+    await Promise.all(unread.map((n) => handleMarkAsDone(n.id)));
   };
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -328,80 +342,108 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div
                   role="dialog"
                   aria-label="Notifikasi admin"
-                  className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
+                  className="absolute right-0 mt-3 w-[min(92vw,420px)] bg-white border border-slate-200 rounded-[1.5rem] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
                 >
-                  <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start gap-2">
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900">Notifikasi</h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                        {pendingCount > 0
-                          ? `${pendingCount} belum dibaca`
-                          : "Permintaan Mahasiswa & Riwayat Tindakan Admin"}
-                      </p>
+                  <div className="bg-white">
+                    <div className="p-5 border-b border-slate-100">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-black text-lg text-slate-950 tracking-tight">Notifikasi</h4>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {pendingCount > 0 ? `${pendingCount} permintaan perlu dilihat` : "Semua aktivitas admin sudah terbaca"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Live</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-2">
+                        {[
+                          { id: "all" as const, label: "Semua", count: notifications.length },
+                          { id: "unread" as const, label: "Belum dibaca", count: pendingCount },
+                        ].map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setNotifFilter(tab.id)}
+                            className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-all ${
+                              notifFilter === tab.id
+                                ? "bg-[#263C92] text-white shadow-sm"
+                                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                            }`}
+                          >
+                            {tab.label}
+                            <span className="ml-1.5 opacity-75">{tab.count}</span>
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={handleMarkAllAsDone}
+                          disabled={pendingCount === 0}
+                          className="ml-auto text-[10px] font-black text-[#263C92] hover:underline disabled:text-slate-300 disabled:no-underline"
+                        >
+                          Tandai semua
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded shrink-0 border border-blue-100">Live</span>
                   </div>
-                  <div className="max-h-[350px] overflow-y-auto">
-                    {orderedAdminNotifications.length > 0 ? (
-                      orderedAdminNotifications.map((n) => {
+                  <div className="max-h-[440px] overflow-y-auto bg-slate-50/70 p-3">
+                    {visibleAdminNotifications.length > 0 ? (
+                      visibleAdminNotifications.map((n) => {
                         const v = adminNotifVisual(n.type);
                         const Icon = v.Icon;
+                        const isUnread = n.status === "pending";
                         return (
-                        <div key={n.id} className={`p-4 border-b border-slate-50 transition-colors ${n.status === 'done' ? 'opacity-55' : 'hover:bg-slate-50/90'}`}>
-                          <div className="flex gap-3">
-                            <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${v.wrap}`}>
-                              <Icon className="h-4 w-4" />
+                        <div
+                          key={n.id}
+                          className={`relative mb-2 rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                            isUnread ? "border-blue-100 ring-1 ring-blue-50" : "border-transparent opacity-75"
+                          }`}
+                        >
+                          {isUnread && <span className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-[#E40082]" />}
+                          <div className="flex gap-3 pr-4">
+                            <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${v.wrap}`}>
+                              <Icon className="h-5 w-5" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                <span className={`text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-md border ${v.chipClass}`}>
+                              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                <span className={`text-[9px] font-black uppercase tracking-tight px-2 py-0.5 rounded-full border ${v.chipClass}`}>
                                   {v.chip}
                                 </span>
-                                {n.status === "pending" && (
-                                  <span className="text-[9px] font-bold text-[#E40082] bg-[#FFF0F7] px-2 py-0.5 rounded-md border border-pink-100">Baru</span>
-                                )}
+                                <span className="text-[10px] font-semibold text-slate-400">{formatRelativeTimeId(n.created_at)}</span>
                               </div>
-                              <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</p>
-                              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
-                              {n.lab && <p className="text-[9px] text-slate-400 mt-1 font-medium">Lab: {n.lab}</p>}
-                              <div className="mt-3 flex flex-col gap-1.5">
-                                <div>
-                                  <span className="text-[9px] text-slate-600 font-semibold">{formatRelativeTimeId(n.created_at)}</span>
-                                  <span className="text-[8px] text-slate-400 block mt-0.5">{new Date(n.created_at).toLocaleString("id-ID")}</span>
-                                </div>
-                                <div className="flex gap-2">
-                                  {n.status === 'pending' ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setNotifDetail(n);
-                                          setShowNotif(false);
-                                        }}
-                                        className="flex-1 py-1.5 bg-[#263C92] text-white text-[10px] font-bold rounded-lg hover:bg-blue-900 transition-colors"
-                                      >
-                                        Detail
-                                      </button>
-                                      <button type="button" onClick={() => handleMarkAsDone(n.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100">Oke</button>
-                                    </>
-                                  ) : (
-                                    <div className="flex flex-wrap items-center gap-2 w-full">
-                                      <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase italic">
-                                        <CheckIcon className="h-3 w-3" /> Selesai
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setNotifDetail(n);
-                                          setShowNotif(false);
-                                        }}
-                                        className="text-[10px] font-bold text-[#263C92] hover:underline"
-                                      >
-                                        Lihat detail
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
+                              <p className="text-sm font-black text-slate-900 leading-snug">{n.title}</p>
+                              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{n.message}</p>
+                              {n.lab && <p className="mt-2 text-[10px] font-bold text-slate-400">Lab: {n.lab}</p>}
+                              <div className="mt-3 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setNotifDetail(n);
+                                    setShowNotif(false);
+                                  }}
+                                  className="flex-1 rounded-xl bg-[#263C92] py-2 text-[11px] font-black text-white transition-colors hover:bg-blue-900"
+                                >
+                                  Buka detail
+                                </button>
+                                {isUnread ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkAsDone(n.id)}
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-500 transition-colors hover:bg-slate-50"
+                                  >
+                                    Oke
+                                  </button>
+                                ) : (
+                                  <span className="flex items-center gap-1 px-2 text-[10px] font-bold text-emerald-600">
+                                    <CheckIcon className="h-3 w-3" /> Dibaca
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -409,8 +451,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                         );
                       })
                     ) : (
-                      <div className="p-8 text-center text-slate-400 text-sm">
-                        <p>Tidak ada notifikasi baru</p>
+                      <div className="rounded-2xl bg-white p-8 text-center text-slate-400 text-sm">
+                        <BellIcon className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                        <p className="font-bold text-slate-600">
+                          {notifFilter === "unread" ? "Tidak ada yang belum dibaca" : "Belum ada notifikasi"}
+                        </p>
+                        <p className="mt-1 text-xs">Permintaan masuk dan riwayat tindakan akan muncul di sini.</p>
                       </div>
                     )}
                   </div>

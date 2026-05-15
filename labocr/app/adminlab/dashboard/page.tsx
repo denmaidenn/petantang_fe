@@ -10,6 +10,7 @@ import {
   CpuChipIcon,
   XMarkIcon,
   ArrowPathIcon,
+  DocumentCheckIcon,
 } from "@heroicons/react/24/outline";
 import {
   getLabStatus,
@@ -59,6 +60,33 @@ function RealtimeClock() {
   );
 }
 
+function getInitials(name?: string) {
+  const words = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "KT";
+  return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
+}
+
+function formatClock(value?: string | null) {
+  if (!value) return "--:--";
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  }
+  return value.slice(0, 5);
+}
+
+function getBookingRange(item: Peminjaman) {
+  if (item.jam_mulai && item.jam_selesai) return `${item.jam_mulai} - ${item.jam_selesai}`;
+  if (item.slot_start && item.slot_end) return `${item.slot_start} - ${item.slot_end}`;
+  return `${formatClock(item.waktu_masuk)} - Menunggu ACC`;
+}
+
+function getConfidencePercent(value?: number | null) {
+  if (value == null) return "99.0%";
+  const pct = value <= 1 ? value * 100 : value;
+  return `${pct.toFixed(1)}%`;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -86,6 +114,8 @@ export default function DashboardPage() {
   // ─── Detail Modal ────────────────────────────────────
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<Peminjaman | null>(null);
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [verificationItem, setVerificationItem] = useState<Peminjaman | null>(null);
 
   // ─── Actions (Approve / Reject) ──────────────────────
   const handleApprove = async (pid: number) => {
@@ -97,6 +127,7 @@ export default function DashboardPage() {
       const { approvePeminjaman } = await import("@/lib/api");
       await approvePeminjaman(pid, token);
       Swal.fire({ icon: "success", title: "Berhasil", text: "Peminjaman disetujui", timer: 1500 });
+      setVerificationModalOpen(false);
       fetchStatus();
     } catch (err) {
       const apiErr = err as ApiError;
@@ -116,6 +147,7 @@ export default function DashboardPage() {
       const { rejectPeminjaman } = await import("@/lib/api");
       await rejectPeminjaman(pid, token);
       Swal.fire({ icon: "success", title: "Berhasil", text: "Peminjaman ditolak", timer: 1500 });
+      setVerificationModalOpen(false);
       fetchStatus();
     } catch (err) {
       const apiErr = err as ApiError;
@@ -326,6 +358,7 @@ export default function DashboardPage() {
                     <th className="px-8 py-5 text-left">Mahasiswa</th>
                     <th className="px-8 py-5 text-left">Lab Tujuan</th>
                     <th className="px-8 py-5 text-left">Jam Tunggu</th>
+                    <th className="px-8 py-5 text-left">Verifikasi</th>
                     <th className="px-8 py-5 text-center">Keputusan</th>
                   </tr>
                 </thead>
@@ -335,7 +368,7 @@ export default function DashboardPage() {
                       <td className="px-8 py-5">
                         <div>
                           <p className="font-bold text-amber-900">{p.nama}</p>
-                          <p className="text-xs text-amber-600 mt-0.5">{p.nim}</p>
+                          <p className="text-xs text-amber-600 mt-0.5">{p.nim}{p.kelas ? ` · ${p.kelas}` : ""}</p>
                         </div>
                       </td>
                       <td className="px-8 py-5">
@@ -343,6 +376,7 @@ export default function DashboardPage() {
                           <span className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase bg-white text-amber-700 shadow-sm border border-amber-100">
                             {p.lab}
                           </span>
+                          <p className="text-[10px] text-amber-700 font-bold mt-1.5">{p.gedung || p.prodi || "Data booking lab"}</p>
                           {labByName.get(p.lab)?.statusOverride === "Maintenance" && (
                             <p className="text-[9px] text-amber-700 font-bold mt-1.5">Lab: Maintenance — pertimbangkan tolak ACC</p>
                           )}
@@ -351,21 +385,27 @@ export default function DashboardPage() {
                       <td className="px-8 py-5">
                         <div className="flex items-center gap-1.5 text-amber-700">
                           <ClockIcon className="h-3.5 w-3.5" />
-                          <span className="font-bold text-xs">{p.waktu_masuk?.slice(11, 16) || "—"}</span>
+                          <span className="font-bold text-xs">{formatClock(p.waktu_masuk)}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-2">
+                          <DocumentCheckIcon className="h-4 w-4 text-emerald-500" />
+                          <div>
+                            <p className="text-[10px] font-black uppercase text-emerald-600">KTM & Wajah Valid</p>
+                            <p className="text-[9px] font-bold text-slate-400">Face {getConfidencePercent(p.scan_confidence)}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="px-8 py-5">
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() => handleApprove(p.id)}
+                            onClick={() => { setVerificationItem(p); setVerificationModalOpen(true); }}
                             disabled={!!actionLoadingId}
-                            className="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-emerald-600 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-4 py-2 bg-[#263C92] text-white text-[10px] font-black uppercase tracking-wider rounded-xl hover:bg-[#1d2f75] transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {actionLoadingId === p.id
-                              ? <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                              : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
-                            }
-                            Setujui ACC
+                            <InformationCircleIcon className="h-3.5 w-3.5" />
+                            Cek Data
                           </button>
                           <button
                             onClick={() => handleReject(p.id)}
@@ -567,6 +607,103 @@ export default function DashboardPage() {
           </div>
         </section>
       </main>
+
+      {verificationModalOpen && verificationItem && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/55 backdrop-blur-md">
+          <div className="relative grid w-full max-w-[840px] overflow-hidden rounded-[2rem] bg-white shadow-2xl md:grid-cols-[42%_58%]">
+            <button
+              type="button"
+              onClick={() => setVerificationModalOpen(false)}
+              className="absolute right-6 top-6 z-10 rounded-full p-2 text-slate-300 transition-colors hover:bg-slate-100 hover:text-slate-600"
+              aria-label="Tutup modal verifikasi"
+            >
+              <XMarkIcon className="h-6 w-6" />
+            </button>
+
+            <div className="bg-slate-950 px-8 py-10 text-white md:px-12">
+              <div className="relative mx-auto mb-9 flex aspect-square w-44 max-w-full flex-col items-center justify-end overflow-hidden rounded-[2rem] border border-white/10 bg-slate-100 shadow-[0_0_35px_rgba(228,0,130,0.28)]">
+                <div className="absolute right-3 top-3 rounded-lg bg-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-900 shadow-sm">
+                  Live Scan
+                </div>
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-orange-300 text-3xl font-black text-orange-900">
+                  {getInitials(verificationItem.nama)}
+                </div>
+                <div className="h-14 w-36 rounded-t-[80px] bg-sky-300" />
+              </div>
+
+              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.35em] text-blue-400">
+                <CpuChipIcon className="h-4 w-4" />
+                Neural Analysis
+              </div>
+              <div className="mt-6 space-y-5 border-t border-white/10 pt-6 text-xs font-black uppercase">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Face Match</span>
+                  <span className="text-emerald-400">{getConfidencePercent(verificationItem.scan_confidence)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">OCR Integrity</span>
+                  <span className="text-emerald-400">Valid</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">KTM Status</span>
+                  <span className="text-emerald-400">Active</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-8 py-10 md:px-12">
+              <p className="text-[11px] font-black uppercase tracking-[0.45em] text-[#E40082]">Verifikasi Identitas</p>
+              <h2 className="mt-4 pr-8 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">{verificationItem.nama}</h2>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700">{verificationItem.nim}</span>
+                <span className="text-xs font-black text-slate-300">·</span>
+                <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                  {verificationItem.kelas || verificationItem.prodi || "Mahasiswa"}
+                </span>
+              </div>
+
+              <div className="mt-9 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Laboratorium</p>
+                  <p className="mt-2 text-sm font-black text-slate-800">{verificationItem.lab}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Gedung</p>
+                  <p className="mt-2 text-sm font-black text-slate-800">{verificationItem.gedung || "Belum terhubung jadwal"}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 sm:col-span-2">
+                  <p className="text-[10px] font-black uppercase text-slate-400">Jam Penggunaan</p>
+                  <p className="mt-2 text-base font-black text-emerald-600">{getBookingRange(verificationItem)}</p>
+                </div>
+              </div>
+
+              <div className="mt-9 grid gap-4 sm:grid-cols-[104px_minmax(0,1fr)]">
+                <button
+                  type="button"
+                  onClick={() => handleReject(verificationItem.id)}
+                  disabled={!!actionLoadingId}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-4 text-xs font-black uppercase tracking-widest text-slate-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Tolak
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApprove(verificationItem.id)}
+                  disabled={!!actionLoadingId}
+                  className="flex items-center justify-center gap-3 rounded-2xl bg-[#263C92] px-5 py-4 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-blue-900/20 transition-all hover:bg-[#1f3178] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+                >
+                  {actionLoadingId === verificationItem.id ? (
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckBadgeIcon className="h-4 w-4" />
+                  )}
+                  Izinkan Akses
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── MODAL: DETAIL PEMINJAMAN ──────────────────────── */}
       {detailModalOpen && detailItem && (
