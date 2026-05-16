@@ -29,10 +29,12 @@ import {
   getPublicLabs,
   Schedule,
   getPublicStatus,
+  getPublicCurrentLab,
   LabStatusResponse,
   Peminjaman,
   type Lab,
 } from "@/lib/api";
+import Swal from "sweetalert2";
 
 /** Query untuk halaman booking — tanggal sel kolom + slot waktu (harus sama dengan jadwal booking). */
 function buildBookingHref(columnDate: Date, slotStart: string, slotEnd: string, gedungFilter: string) {
@@ -971,7 +973,22 @@ export default function MonitoringLabVokasi() {
 
               {activeModal.status === "tersedia" && (
                 <button
-                  onClick={() => (window.location.href = "/scan")}
+                  onClick={async () => {
+                    try {
+                      const res = await getPublicCurrentLab();
+                      if (!res.lab) {
+                        Swal.fire({
+                          icon: "warning",
+                          title: "Belum Ada Jadwal Aktif",
+                          text: "Tidak ada jadwal lab yang aktif saat ini. Anda belum bisa melakukan scan.",
+                        });
+                      } else {
+                        window.location.href = "/scan";
+                      }
+                    } catch (err) {
+                      window.location.href = "/scan";
+                    }
+                  }}
                   className="w-full mt-10 bg-[#263C92] text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#1a2b6d] transition-all shadow-lg shadow-blue-900/10"
                 >
                   <QrCode className="w-5 h-5" /> Buka Scanner

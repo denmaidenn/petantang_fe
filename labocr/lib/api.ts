@@ -436,6 +436,10 @@ export function getPublicStatus(): Promise<LabStatusResponse> {
   return fetchAPI<LabStatusResponse>("/api/public/status");
 }
 
+export function getPublicCurrentLab(): Promise<{ lab: string | null }> {
+  return fetchAPI<{ lab: string | null }>("/api/public/current_lab");
+}
+
 export interface PublicLabRow {
   id: number;
   name: string;

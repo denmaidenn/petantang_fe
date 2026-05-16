@@ -63,46 +63,72 @@ export default function Labvokshome() {
   };
 
   useEffect(() => {
+    let mounted = true;
+    let jadwalCache: Parameters<typeof getScheduleStatus>[0][] = [];
+
+    const rebuildCards = (jadwalData: typeof jadwalCache, statusData: LabStatusResponse | null) => {
+      const todayName = new Date().toLocaleDateString("id-ID", { weekday: "long" }).toLowerCase();
+      setCurrentDay(todayName.charAt(0).toUpperCase() + todayName.slice(1));
+
+      const hari = new Date().toLocaleDateString("id-ID", { weekday: "long" });
+      const tanggal = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+      setCurrentDate(`${hari}, ${tanggal}`);
+
+      // Filter jadwal hari ini dan urutkan berdasarkan jam mulai
+      const todaySchedule = jadwalData
+        .filter((s) => s.hari.toLowerCase() === todayName)
+        .sort((a, b) => a.jamMulai.localeCompare(b.jamMulai));
+
+      // Ambil maksimal 3 jadwal dengan lab yang berbeda
+      const uniqueLabs = new Set<string>();
+      const displayedSchedules: typeof todaySchedule = [];
+
+      for (const s of todaySchedule) {
+        if (!uniqueLabs.has(s.lab)) {
+          uniqueLabs.add(s.lab);
+          displayedSchedules.push(s);
+          if (displayedSchedules.length === 3) break;
+        }
+      }
+
+      setLabCards(
+        displayedSchedules.map((s) => ({
+          name: s.lab,
+          prodi: s.prodi,
+          gedung: s.gedung,
+          status: getScheduleStatus(s, statusData).toLowerCase(),
+          time: `${s.jamMulai} - ${s.jamSelesai}`,
+        }))
+      );
+    };
+
+    // Initial load: jadwal + status
     Promise.all([getPublicJadwal(), getPublicStatus()])
       .then(([jadwalData, statusData]) => {
-        const todayName = new Date().toLocaleDateString("id-ID", { weekday: "long" }).toLowerCase();
-        setCurrentDay(todayName.charAt(0).toUpperCase() + todayName.slice(1));
-
-        const hari = new Date().toLocaleDateString("id-ID", { weekday: "long" });
-        const tanggal = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-        setCurrentDate(`${hari}, ${tanggal}`);
-
-        // Filter jadwal hari ini dan urutkan berdasarkan jam mulai
-        const todaySchedule = jadwalData
-          .filter((s) => s.hari.toLowerCase() === todayName)
-          .sort((a, b) => a.jamMulai.localeCompare(b.jamMulai));
-
-        // Ambil maksimal 3 jadwal dengan lab yang berbeda
-        const uniqueLabs = new Set<string>();
-        const displayedSchedules = [];
-
-        for (const s of todaySchedule) {
-          if (!uniqueLabs.has(s.lab)) {
-            uniqueLabs.add(s.lab);
-            displayedSchedules.push(s);
-            if (displayedSchedules.length === 3) break;
-          }
-        }
-
-        setLabCards(
-          displayedSchedules.map((s) => ({
-            name: s.lab,
-            prodi: s.prodi,
-            gedung: s.gedung,
-            status: getScheduleStatus(s, statusData).toLowerCase(),
-            time: `${s.jamMulai} - ${s.jamSelesai}`,
-          }))
-        );
+        if (!mounted) return;
+        jadwalCache = jadwalData;
+        rebuildCards(jadwalData, statusData);
       })
       .catch((err) => {
+        if (!mounted) return;
         setLabError(err?.message || "Gagal memuat data lab");
       })
-      .finally(() => setLoadingLabs(false));
+      .finally(() => { if (mounted) setLoadingLabs(false); });
+
+    // Poll status setiap 15 detik agar status lab ter-update real-time
+    const interval = setInterval(() => {
+      getPublicStatus()
+        .then((statusData) => {
+          if (!mounted || jadwalCache.length === 0) return;
+          rebuildCards(jadwalCache, statusData);
+        })
+        .catch(() => { /* biarkan data lama */ });
+    }, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // UPDATE: ALUR 4 TAHAP

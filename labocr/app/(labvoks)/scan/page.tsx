@@ -25,6 +25,7 @@ import {
   captureFrameAsBase64,
   captureFrameAsBlob,
   getErrorMessage,
+  getPublicCurrentLab,
   type ScanResult,
   type FaceResponse,
   type ApiError,
@@ -61,6 +62,10 @@ const ScanLabPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [scanData, setScanData] = useState<ScanData | null>(null);
   const [checkinData, setCheckinData] = useState<CheckinData | null>(null);
+
+  // ─── Schedule gate: cek jadwal aktif saat halaman dimuat ─
+  const [scheduleChecked, setScheduleChecked] = useState(false);
+  const [hasActiveSchedule, setHasActiveSchedule] = useState(true);
 
   // ─── WebSocket States ────────────────────────────────
 
@@ -101,6 +106,36 @@ const ScanLabPage = () => {
     setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
   };
 
+  // ─── On-mount: cek jadwal lab aktif ────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    getPublicCurrentLab().then((res) => {
+      if (cancelled) return;
+      if (!res.lab) {
+        setHasActiveSchedule(false);
+        Swal.fire({
+          icon: "warning",
+          title: "Belum Ada Jadwal Aktif",
+          text: "Tidak ada jadwal lab yang aktif saat ini. Anda tidak dapat melakukan scan.",
+          confirmButtonText: "Kembali ke Jadwal",
+          showCancelButton: true,
+          cancelButtonText: "Tetap di Sini",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            window.location.href = "/jadwal";
+          }
+        });
+      } else {
+        setHasActiveSchedule(true);
+      }
+      setScheduleChecked(true);
+    }).catch(() => {
+      if (!cancelled) setScheduleChecked(true);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (currentStep === 1 || currentStep === 2) {
       startCamera();
@@ -137,6 +172,17 @@ const ScanLabPage = () => {
     setIsLoading(true);
 
     try {
+      const currentLabRes = await getPublicCurrentLab();
+      if (!currentLabRes.lab) {
+        Swal.fire({
+          icon: "warning",
+          title: "Belum Ada Jadwal Aktif",
+          text: "Tidak ada jadwal lab yang aktif saat ini. Anda tidak dapat melakukan scan.",
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const blob = await captureFrameAsBlob(videoRef.current);
       const result: ScanResult = await scanKTM(blob, token);
 
@@ -169,6 +215,10 @@ const ScanLabPage = () => {
       if (apiErr.status === 401 || apiErr.status === 403) {
         Swal.fire({ icon: "warning", title: "Belum Login", text: "Silahkan login terlebih dahulu untuk melakukan scan KTM." });
         router.push("/auth/login");
+      } else if (apiErr.status === 425) {
+        // Backend menolak karena tidak ada jadwal aktif
+        setHasActiveSchedule(false);
+        Swal.fire({ icon: "warning", title: "Belum Ada Jadwal Aktif", text: getErrorMessage(apiErr) });
       } else {
         Swal.fire({ icon: "error", title: "Gagal Scan", text: getErrorMessage(apiErr) });
       }
@@ -215,6 +265,9 @@ const ScanLabPage = () => {
       } else if (apiErr.status === 409 && scanData.action_required === "face_verify") {
         // Already checked in
         Swal.fire({ icon: "warning", title: "Sesi Aktif", text: "Anda sudah berada di dalam lab (sesi peminjaman aktif). Silahkan check-out terlebih dahulu sebelum verifikasi lagi." });
+      } else if (apiErr.status === 425) {
+        // Di luar jadwal lab — tampilkan info jadwal berikutnya
+        Swal.fire({ icon: "warning", title: "Belum Ada Jadwal Aktif", text: getErrorMessage(apiErr) });
       } else {
         Swal.fire({ icon: "error", title: "Gagal Verifikasi", text: getErrorMessage(apiErr) });
       }
@@ -320,12 +373,25 @@ const ScanLabPage = () => {
                     <RefreshCcw size={18} />
                   </button>
                 </div>
+                {/* No-schedule warning banner */}
+                {scheduleChecked && !hasActiveSchedule && (
+                  <div className="w-full max-w-[320px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[560px] mt-6 px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                    <AlertCircle size={18} className="text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-black text-amber-700">Tidak Ada Jadwal Aktif</p>
+                      <p className="text-[11px] text-amber-600 font-medium mt-0.5">Scan hanya bisa dilakukan saat jadwal lab berlangsung atau 1 jam sebelumnya.</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Scan Button */}
                 <button
                   onClick={handleScanKTM}
-                  disabled={isLoading}
+                  disabled={isLoading || !hasActiveSchedule}
                   className={`mt-8 w-full max-w-[320px] sm:max-w-[380px] md:max-w-[480px] lg:max-w-[560px] py-5 rounded-[24px] font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${isLoading
                     ? "bg-slate-200 text-slate-400 cursor-wait"
+                    : !hasActiveSchedule
+                    ? "bg-slate-100 text-slate-300 cursor-not-allowed"
                     : "bg-[#263C92] text-white shadow-xl shadow-blue-900/20 active:scale-95"
                     }`}
                 >
