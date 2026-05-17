@@ -37,7 +37,7 @@ import {
 import Swal from "sweetalert2";
 
 /** Query untuk halaman booking — tanggal sel kolom + slot waktu (harus sama dengan jadwal booking). */
-function buildBookingHref(columnDate: Date, slotStart: string, slotEnd: string, gedungFilter: string) {
+function buildBookingHref(columnDate: Date, slotStart: string, slotEnd: string, gedungFilter: string, lab?: string) {
   const y = columnDate.getFullYear();
   const m = String(columnDate.getMonth() + 1).padStart(2, "0");
   const day = String(columnDate.getDate()).padStart(2, "0");
@@ -50,6 +50,7 @@ function buildBookingHref(columnDate: Date, slotStart: string, slotEnd: string, 
   if (gedungFilter && gedungFilter !== "Semua Gedung") {
     q.set("gedung", gedungFilter);
   }
+  if (lab) q.set("lab", lab);
   return `/booking?${q.toString()}`;
 }
 
@@ -63,12 +64,18 @@ export default function MonitoringLabVokasi() {
   const router = useRouter();
   const [selectedGedung, setSelectedGedung] = useState("Semua Gedung");
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [activeModal, setActiveModal] = useState<null | (Schedule & { status: string; waktu: string; peminjam: string })>(null);
+  const [activeModal, setActiveModal] = useState<null | (Schedule & {
+    status: string;
+    waktu: string;
+    peminjam: string;
+    bookingDate: Date;
+  })>(null);
   const [jadwal, setJadwal] = useState<Schedule[]>([]);
   const [publicLabs, setPublicLabs] = useState<Lab[] | null>(null);
   const [labStatus, setLabStatus] = useState<LabStatusResponse | null>(null);
   const [loadingJadwal, setLoadingJadwal] = useState(true);
   const [jadwalError, setJadwalError] = useState<string | null>(null);
+  const [modalBookingNotice, setModalBookingNotice] = useState<string | null>(null);
 
   // --- LOGIKA TANGGAL ---
   const getWeekDays = (date: Date) => {
@@ -196,6 +203,32 @@ export default function MonitoringLabVokasi() {
     return h * 60 + m;
   };
 
+  const getBookingGate = (columnDate: Date, slotStart: string, slotEnd: string) => {
+    const columnDayStart = startOfLocalDay(columnDate);
+    const todayStart = startOfLocalDay(new Date());
+    if (columnDayStart.getTime() < todayStart.getTime()) {
+      return { enabled: false, reason: "Tanggal peminjaman sudah lewat. Pilih slot hari ini untuk booking dan scan KTM." };
+    }
+    if (columnDayStart.getTime() > todayStart.getTime()) {
+      return { enabled: false, reason: "Booking hanya bisa dilakukan pada hari H agar data scan KTM sesuai waktu peminjaman." };
+    }
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const startMin = timeToMin(slotStart);
+    const endMin = timeToMin(slotEnd);
+    const isValidRange = slotStart && slotEnd && endMin > startMin;
+    const isOngoingSlot = isValidRange && nowMin >= startMin && nowMin <= endMin;
+
+    if (isOngoingSlot) {
+      return { enabled: true, reason: "Slot sedang berlangsung, booking dan scan KTM masih bisa dilakukan." };
+    }
+
+    if (isValidRange && nowMin > endMin) {
+      return { enabled: false, reason: "Slot waktu ini sudah berakhir. Pilih slot lain yang masih tersedia hari ini." };
+    }
+    return { enabled: true, reason: "Booking dan scan KTM untuk slot hari ini" };
+  };
+
   /** Samakan dengan dashboard: cocokkan hari kolom ke field jadwal (bukan hanya tanggal). */
   const columnMatchesScheduleDay = (schedule: Schedule, columnDate: Date) => {
     const col = columnDate.toLocaleDateString("id-ID", { weekday: "long" }).toLowerCase();
@@ -250,8 +283,6 @@ export default function MonitoringLabVokasi() {
       return { status: "maintenance", loan: null } as const;
     }
 
-    const baseStatus = schedule.status?.toLowerCase() || "tersedia";
-
     const activeLoan = labStatus?.peminjaman?.find((loan) =>
       isLoanRelevantToSchedule(loan, schedule, columnDate)
     );
@@ -268,12 +299,13 @@ export default function MonitoringLabVokasi() {
       return { status: "menunggu", loan: pendingLoan } as const;
     }
 
+    const baseStatus = schedule.status?.toLowerCase() || "tersedia";
     if (baseStatus === "maintenance" || baseStatus === "maintance") {
       return { status: "maintenance", loan: null } as const;
     }
 
     return {
-      status: baseStatus === "digunakan" || baseStatus === "menunggu" ? baseStatus : "tersedia",
+      status: "tersedia",
       loan: null,
     } as const;
   };
@@ -662,9 +694,6 @@ export default function MonitoringLabVokasi() {
 
                       {hariKerja.map((hari, hIdx) => {
                         const cellArray = scheduleMap[`${idx}-${hIdx}`];
-                        const columnDayStart = startOfLocalDay(hari.date);
-                        const todayStart = startOfLocalDay(new Date());
-                        const isBookingPastDate = columnDayStart < todayStart;
 
                         // if cell is completely empty or just undefined
                         if (!cellArray || cellArray.length === 0) {
@@ -711,21 +740,15 @@ export default function MonitoringLabVokasi() {
                                   </div>
                                   <button
                                     type="button"
-                                    disabled={isBookingPastDate}
-                                    title={
-                                      isBookingPastDate
-                                        ? "Booking hanya untuk tanggal hari ini ke depan"
-                                        : "Booking untuk tanggal kolom ini dan slot waktu ini"
-                                    }
-                                    onClick={() =>
-                                      router.push(
-                                        buildBookingHref(hari.date, j.start, j.end, selectedGedung),
-                                      )
-                                    }
-                                    className="w-full flex items-center justify-center gap-2 bg-white border border-slate-200 text-[#263C92] py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase hover:bg-[#263C92] hover:text-white transition-all active:scale-95 shadow-sm disabled:opacity-40 disabled:pointer-events-none disabled:hover:bg-white disabled:hover:text-[#263C92]"
+                                    disabled
+                                    title="Booking ruangan di luar jadwal belum tersedia"
+                                    className="w-full flex items-center justify-center gap-2 border border-slate-200 bg-slate-100 py-2 sm:py-2.5 rounded-xl text-[10px] font-bold uppercase text-slate-400 shadow-sm cursor-not-allowed"
                                   >
-                                    <CalendarPlus className="w-3.5 h-3.5" /> Booking
+                                    <CalendarPlus className="w-3.5 h-3.5" /> Belum tersedia
                                   </button>
+                                  <p className="text-[9px] font-semibold leading-relaxed text-slate-400">
+                                    Alur booking di luar jadwal sedang disiapkan.
+                                  </p>
                                 </div>
                               </motion.div>
                             </td>
@@ -808,11 +831,13 @@ export default function MonitoringLabVokasi() {
                                         onClick={() => {
                                           const peminjamVal = loan?.nama || "Kelas Umum";
 
+                                          setModalBookingNotice(null);
                                           setActiveModal({
                                             ...cell.item,
                                             status,
                                             waktu,
                                             peminjam: peminjamVal,
+                                            bookingDate: hari.date,
                                           });
                                         }}
                                         className="w-full flex items-center justify-center gap-2 bg-[#263C92] sm:bg-slate-50 text-white sm:text-slate-600 py-2.5 sm:py-2 rounded-xl text-[10px] font-bold sm:font-semibold active:scale-95 transition-all"
@@ -971,29 +996,72 @@ export default function MonitoringLabVokasi() {
                 </div>
               </div>
 
-              {activeModal.status === "tersedia" && (
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await getPublicCurrentLab();
-                      if (!res.lab) {
-                        Swal.fire({
-                          icon: "warning",
-                          title: "Belum Ada Jadwal Aktif",
-                          text: "Tidak ada jadwal lab yang aktif saat ini. Anda belum bisa melakukan scan.",
-                        });
-                      } else {
-                        window.location.href = "/scan";
-                      }
-                    } catch (err) {
-                      window.location.href = "/scan";
-                    }
-                  }}
-                  className="w-full mt-10 bg-[#263C92] text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-[#1a2b6d] transition-all shadow-lg shadow-blue-900/10"
-                >
-                  <QrCode className="w-5 h-5" /> Buka Scanner
-                </button>
-              )}
+              {activeModal.status === "tersedia" && (() => {
+                const bookingGate = getBookingGate(
+                  activeModal.bookingDate,
+                  normalizeTime(activeModal.jamMulai),
+                  normalizeTime(activeModal.jamSelesai),
+                );
+                return (
+                  <div className="mt-10 space-y-3">
+                    <button
+                      onClick={async () => {
+                        if (!bookingGate.enabled) {
+                          setModalBookingNotice(bookingGate.reason);
+                          return;
+                        }
+                        setModalBookingNotice(null);
+                        // Cek jadwal lab aktif sebelum navigasi booking
+                        try {
+                          const res = await getPublicCurrentLab();
+                          if (!res.lab) {
+                            Swal.fire({
+                              icon: "warning",
+                              title: "Belum Ada Jadwal Aktif",
+                              text: "Tidak ada jadwal lab yang aktif saat ini. Anda belum bisa melakukan scan.",
+                            });
+                            return;
+                          }
+                        } catch {
+                          // Jika gagal cek, tetap lanjut (fallback)
+                        }
+                        router.push(
+                          buildBookingHref(
+                            activeModal.bookingDate,
+                            normalizeTime(activeModal.jamMulai),
+                            normalizeTime(activeModal.jamSelesai),
+                            activeModal.gedung,
+                            activeModal.lab,
+                          ),
+                        );
+                      }}
+                      className={`w-full py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 transition-all shadow-lg ${
+                        bookingGate.enabled
+                          ? "bg-[#263C92] text-white hover:bg-[#1a2b6d] shadow-blue-900/10"
+                          : "bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-700 hover:ring-1 hover:ring-amber-200 shadow-slate-200/60"
+                      }`}
+                    >
+                      <QrCode className="w-5 h-5" /> Booking & Scan KTM
+                    </button>
+                    <AnimatePresence>
+                      {!bookingGate.enabled && modalBookingNotice && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          role="alert"
+                          className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4"
+                        >
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                          <p className="text-xs font-semibold leading-relaxed text-amber-700">
+                            {modalBookingNotice}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })()}
 
               {activeModal.status !== "tersedia" && (
                 <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">

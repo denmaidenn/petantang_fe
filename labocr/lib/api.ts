@@ -179,24 +179,42 @@ export function scanKTM(imageBlob: Blob, token: string): Promise<ScanResult> {
 /**
  * Enroll a new face (first time registration).
  */
-export function enrollFace(nim: string, nama: string, imageBase64: string, token?: string | null): Promise<FaceResponse> {
+export interface BookingIntentPayload {
+  lab?: string | null;
+  booking_date?: string | null;
+  slot_start?: string | null;
+  slot_end?: string | null;
+}
+
+export function enrollFace(
+  nim: string,
+  nama: string,
+  imageBase64: string,
+  token?: string | null,
+  bookingIntent?: BookingIntentPayload,
+): Promise<FaceResponse> {
   return fetchAPI<FaceResponse>("/api/face/enroll", {
     method: "POST",
     token,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nim, nama, image_base64: imageBase64 }),
+    body: JSON.stringify({ nim, nama, image_base64: imageBase64, ...bookingIntent }),
   });
 }
 
 /**
  * Verify a face for daily attendance.
  */
-export function verifyFace(nim: string, imageBase64: string, token?: string | null): Promise<FaceResponse> {
+export function verifyFace(
+  nim: string,
+  imageBase64: string,
+  token?: string | null,
+  bookingIntent?: BookingIntentPayload,
+): Promise<FaceResponse> {
   return fetchAPI<FaceResponse>("/api/face/verify", {
     method: "POST",
     token,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nim, image_base64: imageBase64 }),
+    body: JSON.stringify({ nim, image_base64: imageBase64, ...bookingIntent }),
   });
 }
 
@@ -232,9 +250,21 @@ export interface Peminjaman {
   id: number;
   nim: string;
   nama: string;
+  prodi?: string | null;
+  angkatan?: number | null;
   lab: string;
+  gedung?: string | null;
+  kelas?: string | null;
+  mata_kuliah?: string | null;
+  jam_mulai?: string | null;
+  jam_selesai?: string | null;
+  booking_date?: string | null;
+  slot_start?: string | null;
+  slot_end?: string | null;
   waktu_masuk: string;
   waktu_keluar: string | null;
+  scan_confidence?: number | null;
+  catatan?: string | null;
   status: "aktif" | "selesai" | "menunggu" | "ditolak";
 }
 

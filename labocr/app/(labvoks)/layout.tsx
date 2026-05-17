@@ -64,6 +64,7 @@ export default function PublicLayout({
   const [nim, setNim] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<"all" | "unread">("all");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifDetail, setNotifDetail] = useState<Notification | null>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -157,6 +158,13 @@ export default function PublicLayout({
     return copy;
   }, [notifications]);
 
+  const visibleStudentNotifications = useMemo(() => {
+    if (notifFilter === "unread") {
+      return orderedStudentNotifications.filter((n) => n.status === "pending");
+    }
+    return orderedStudentNotifications;
+  }, [notifFilter, orderedStudentNotifications]);
+
   const formatNotificationTime = (createdAt: string) => {
     try {
       const date = new Date(createdAt);
@@ -175,6 +183,12 @@ export default function PublicLayout({
     } catch (error) {
       console.error("Failed to mark notification done:", error);
     }
+  };
+
+  const handleMarkAllAsDone = async () => {
+    const unread = notifications.filter((n) => n.status === "pending");
+    if (unread.length === 0) return;
+    await Promise.all(unread.map((n) => handleMarkAsDone(n.id)));
   };
 
   // UPDATE: href sudah disesuaikan dengan Route Groups (tanpa /labvoks)
@@ -250,109 +264,134 @@ export default function PublicLayout({
                     <div
                       role="dialog"
                       aria-label="Notifikasi mahasiswa"
-                      className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
+                      className="absolute right-0 mt-3 w-[min(92vw,420px)] bg-white border border-slate-200 rounded-[1.5rem] shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 origin-top-right"
                     >
-                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start gap-2">
-                        <div>
-                          <h4 className="font-bold text-sm text-slate-900">Notifikasi</h4>
-                          <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                            {pendingCount > 0
-                              ? `${pendingCount} belum dibaca · status peminjaman lab`
-                              : "Menunggu ACC, disetujui, atau ditolak"}
-                          </p>
-                          <p className="text-[9px] text-slate-400 mt-1.5 leading-snug">ESC tutup · yang belum dibaca di atas</p>
+                      <div className="p-5 border-b border-slate-100 bg-white">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-black text-lg text-slate-950 tracking-tight">Notifikasi</h4>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {pendingCount > 0 ? `${pendingCount} update peminjaman belum dibaca` : "Status peminjaman terbaru akan muncul di sini"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                            </span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Live</span>
+                          </div>
                         </div>
-                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shrink-0">Live</span>
+
+                        <div className="mt-4 flex items-center gap-2">
+                          {[
+                            { id: "all" as const, label: "Semua", count: notifications.length },
+                            { id: "unread" as const, label: "Belum dibaca", count: pendingCount },
+                          ].map((tab) => (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setNotifFilter(tab.id)}
+                              className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-all ${
+                                notifFilter === tab.id
+                                  ? "bg-[#263C92] text-white shadow-sm"
+                                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              {tab.label}<span className="ml-1.5 opacity-75">{tab.count}</span>
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={handleMarkAllAsDone}
+                            disabled={pendingCount === 0}
+                            className="ml-auto text-[10px] font-black text-[#263C92] hover:underline disabled:text-slate-300 disabled:no-underline"
+                          >
+                            Tandai semua
+                          </button>
+                        </div>
                       </div>
-                      <div className="max-h-[350px] overflow-y-auto">
-                        {orderedStudentNotifications.length === 0 ? (
-                          <div className="p-8 text-center text-slate-400 text-sm">
-                            <p>Belum ada notifikasi</p>
+
+                      <div className="max-h-[440px] overflow-y-auto bg-slate-50/70 p-3">
+                        {visibleStudentNotifications.length === 0 ? (
+                          <div className="rounded-2xl bg-white p-8 text-center text-slate-400 text-sm">
+                            <BellIcon className="mx-auto mb-3 h-8 w-8 text-slate-300" />
+                            <p className="font-bold text-slate-600">
+                              {notifFilter === "unread" ? "Tidak ada yang belum dibaca" : "Belum ada notifikasi"}
+                            </p>
+                            <p className="mt-1 text-xs">Update ACC, penolakan, dan status peminjaman akan tampil di sini.</p>
                           </div>
                         ) : (
-                          orderedStudentNotifications.map((n) => {
-                          const meta = studentNotifMeta(n.type);
-                          const iconWrap =
-                            n.type === "booking_rejected"
-                              ? "bg-red-100 text-red-600 border border-red-200/80"
-                              : n.type === "booking_approved"
-                                ? "bg-emerald-100 text-emerald-600 border border-emerald-200/80"
-                                : n.type === "booking_pending"
-                                  ? "bg-amber-100 text-amber-600 border border-amber-200/80"
-                                  : "bg-blue-100 text-blue-600 border border-blue-200/80";
-                          return (
-                            <div key={n.id} className={`p-4 border-b border-slate-50 transition-colors ${n.status === "done" ? "opacity-55" : "hover:bg-slate-50/90"}`}>
-                              <div className="flex gap-3">
-                                <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${iconWrap}`}>
-                                  {n.type === "booking_approved" ? (
-                                    <CheckIcon className="h-4 w-4" />
-                                  ) : n.type === "booking_rejected" ? (
-                                    <XMarkIcon className="h-4 w-4" />
-                                  ) : (
-                                    <DocumentTextIcon className="h-4 w-4" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
-                                    <span className={`text-[9px] font-bold uppercase tracking-tight px-2 py-0.5 rounded-md border ${meta.chipClass}`}>
-                                      {meta.chip}
-                                    </span>
-                                    {n.status === "pending" && (
-                                      <span className="text-[9px] font-bold text-[#E40082] bg-[#FFF0F7] px-2 py-0.5 rounded-md border border-pink-100">Baru</span>
+                          visibleStudentNotifications.map((n) => {
+                            const meta = studentNotifMeta(n.type);
+                            const iconWrap =
+                              n.type === "booking_rejected"
+                                ? "bg-red-100 text-red-600 border border-red-200/80"
+                                : n.type === "booking_approved"
+                                  ? "bg-emerald-100 text-emerald-600 border border-emerald-200/80"
+                                  : n.type === "booking_pending"
+                                    ? "bg-amber-100 text-amber-600 border border-amber-200/80"
+                                    : "bg-blue-100 text-blue-600 border border-blue-200/80";
+                            const isUnread = n.status === "pending";
+                            return (
+                              <div key={n.id} className={`relative mb-2 rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${isUnread ? "border-blue-100 ring-1 ring-blue-50" : "border-transparent opacity-75"}`}>
+                                {isUnread && <span className="absolute right-4 top-4 h-2.5 w-2.5 rounded-full bg-[#E40082]" />}
+                                <div className="flex gap-3 pr-4">
+                                  <div className={`h-11 w-11 rounded-full flex items-center justify-center shrink-0 ${iconWrap}`}>
+                                    {n.type === "booking_approved" ? (
+                                      <CheckIcon className="h-5 w-5" />
+                                    ) : n.type === "booking_rejected" ? (
+                                      <XMarkIcon className="h-5 w-5" />
+                                    ) : (
+                                      <DocumentTextIcon className="h-5 w-5" />
                                     )}
                                   </div>
-                                  <p className="text-[11px] font-bold text-slate-800 leading-tight">{n.title}</p>
-                                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{n.message}</p>
-                                  {n.lab ? <p className="text-[9px] text-slate-400 mt-1 font-medium">Lab: {n.lab}</p> : null}
-                                  <div className="mt-3 flex flex-col gap-2">
-                                    <div>
-                                      <span className="text-[9px] text-slate-600 font-semibold">{formatRelativeTimeId(n.created_at)}</span>
-                                      <span className="text-[8px] text-slate-400 block mt-0.5">{formatNotificationTime(n.created_at)}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                      <span className={`text-[9px] font-black uppercase tracking-tight px-2 py-0.5 rounded-full border ${meta.chipClass}`}>
+                                        {meta.chip}
+                                      </span>
+                                      <span className="text-[10px] font-semibold text-slate-400">{formatRelativeTimeId(n.created_at)}</span>
                                     </div>
-                                    <div className="flex gap-2">
-                                      {n.status === "pending" ? (
-                                        <>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setNotifDetail(n);
-                                              setShowNotif(false);
-                                            }}
-                                            className="flex-1 py-1.5 bg-[#263C92] text-white text-[10px] font-bold rounded-lg hover:bg-blue-900 transition-colors"
-                                          >
-                                            Detail
-                                          </button>
-                                          <button type="button" onClick={() => handleMarkAsDone(n.id)} className="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-lg hover:bg-emerald-100 transition-colors border border-emerald-100">Selesai</button>
-                                        </>
+                                    <p className="text-sm font-black text-slate-900 leading-snug">{n.title}</p>
+                                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{n.message}</p>
+                                    {n.lab ? <p className="mt-2 text-[10px] font-bold text-slate-400">Lab: {n.lab}</p> : null}
+                                    <div className="mt-3 flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNotifDetail(n);
+                                          setShowNotif(false);
+                                        }}
+                                        className="flex-1 rounded-xl bg-[#263C92] py-2 text-[11px] font-black text-white transition-colors hover:bg-blue-900"
+                                      >
+                                        Buka detail
+                                      </button>
+                                      {isUnread ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleMarkAsDone(n.id)}
+                                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-500 transition-colors hover:bg-slate-50"
+                                        >
+                                          Oke
+                                        </button>
                                       ) : (
-                                        <div className="flex flex-wrap items-center gap-2 w-full">
-                                          <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 uppercase italic">
-                                            <CheckIcon className="h-3 w-3" /> Dibaca
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setNotifDetail(n);
-                                              setShowNotif(false);
-                                            }}
-                                            className="text-[10px] font-bold text-[#263C92] hover:underline"
-                                          >
-                                            Lihat detail
-                                          </button>
-                                        </div>
+                                        <span className="flex items-center gap-1 px-2 text-[10px] font-bold text-emerald-600">
+                                          <CheckIcon className="h-3 w-3" /> Dibaca
+                                        </span>
                                       )}
                                     </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })
+                            );
+                          })
                         )}
                       </div>
                     </div>
                   )}
                 </div>
+
                 <div className="relative" ref={profileRef}>
                   <button onClick={() => setProfileOpen(!profileOpen)} className="hidden md:flex items-center gap-3 pl-3 pr-4 py-2 rounded-full border border-slate-200 text-slate-700 bg-white shadow-sm transition-all duration-300 hover:border-[#263C92] hover:text-[#263C92]">
                     <div className="text-left">

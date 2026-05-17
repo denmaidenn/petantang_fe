@@ -47,6 +47,13 @@ interface CheckinData {
   lab?: string;
 }
 
+interface BookingIntent {
+  lab?: string | null;
+  tanggal?: string | null;
+  slotStart?: string | null;
+  slotEnd?: string | null;
+}
+
 const ScanLabPage = () => {
   const router = useRouter();
   // ─── State ───────────────────────────────────────────
@@ -62,6 +69,7 @@ const ScanLabPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [scanData, setScanData] = useState<ScanData | null>(null);
   const [checkinData, setCheckinData] = useState<CheckinData | null>(null);
+  const [bookingIntent, setBookingIntent] = useState<BookingIntent | null>(null);
 
   // ─── Schedule gate: cek jadwal aktif saat halaman dimuat ─
   const [scheduleChecked, setScheduleChecked] = useState(false);
@@ -75,6 +83,29 @@ const ScanLabPage = () => {
     { id: 3, title: "S&K", icon: <FileText className="w-5 h-5" /> },
     { id: 4, title: "Selesai", icon: <CheckCircle2 className="w-5 h-5" /> },
   ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery: BookingIntent = {
+      lab: params.get("lab"),
+      tanggal: params.get("tanggal"),
+      slotStart: params.get("slotStart"),
+      slotEnd: params.get("slotEnd"),
+    };
+    const hasQueryIntent = Object.values(fromQuery).some(Boolean);
+    if (hasQueryIntent) {
+      setBookingIntent(fromQuery);
+      localStorage.setItem("smartlab_booking_intent", JSON.stringify(fromQuery));
+      return;
+    }
+    try {
+      const stored = localStorage.getItem("smartlab_booking_intent");
+      if (stored) setBookingIntent(JSON.parse(stored) as BookingIntent);
+    } catch {
+      localStorage.removeItem("smartlab_booking_intent");
+    }
+  }, []);
 
   // ─── Camera Control ──────────────────────────────────
   // [U-04] startCamera tidak bergantung pada state stream (stale closure fix)
@@ -242,9 +273,19 @@ const ScanLabPage = () => {
       let response: FaceResponse;
 
       if (scanData.action_required === "face_enroll") {
-        response = await enrollFace(scanData.nim, scanData.db_nama, base64, token);
+        response = await enrollFace(scanData.nim, scanData.db_nama, base64, token, {
+          lab: bookingIntent?.lab,
+          booking_date: bookingIntent?.tanggal,
+          slot_start: bookingIntent?.slotStart,
+          slot_end: bookingIntent?.slotEnd,
+        });
       } else {
-        response = await verifyFace(scanData.nim, base64, token);
+        response = await verifyFace(scanData.nim, base64, token, {
+          lab: bookingIntent?.lab,
+          booking_date: bookingIntent?.tanggal,
+          slot_start: bookingIntent?.slotStart,
+          slot_end: bookingIntent?.slotEnd,
+        });
       }
 
       setCheckinData({
@@ -253,15 +294,20 @@ const ScanLabPage = () => {
         face_status: response.status,
         lab: response.checkin?.lab,
       });
+      if (typeof window !== "undefined" && response.checkin?.success) {
+        localStorage.removeItem("smartlab_booking_intent");
+      }
 
       // Move to step 3 (S&K)
       setCurrentStep(3);
     } catch (err) {
       const apiErr = err as ApiError;
-      if (apiErr.status === 409 && scanData.action_required === "face_enroll") {
+      if (apiErr.status === 409 && scanData.action_required === "face_enroll" && !/booking|slot|tanggal/i.test(apiErr.detail || "")) {
         // Face already enrolled → try verify instead
         setScanData({ ...scanData, action_required: "face_verify" });
         Swal.fire({ icon: "info", title: "Terdaftar", text: "Wajah sudah terdaftar. Tekan tombol untuk verifikasi ulang." });
+      } else if (apiErr.status === 409 && /booking|slot|tanggal/i.test(apiErr.detail || "")) {
+        Swal.fire({ icon: "warning", title: "Booking Tidak Aktif", text: apiErr.detail });
       } else if (apiErr.status === 409 && scanData.action_required === "face_verify") {
         // Already checked in
         Swal.fire({ icon: "warning", title: "Sesi Aktif", text: "Anda sudah berada di dalam lab (sesi peminjaman aktif). Silahkan check-out terlebih dahulu sebelum verifikasi lagi." });
