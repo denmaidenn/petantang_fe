@@ -285,14 +285,40 @@ export default function VerifikasiKTMPage() {
               <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
                 <div className="space-y-4">
                   <div className="relative aspect-[1/1] overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-blue-50 to-white">
-                    <div className="absolute right-5 top-5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm">
+                    <div className="absolute right-5 top-5 z-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm">
                       KTM Scan
                     </div>
-                    <div className="flex h-full flex-col items-center justify-end pt-12">
+
+                    {selectedItem.ktm_image ? (
+                      /* Foto KTM asli hasil scan */
+                      <img
+                        src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${selectedItem.ktm_image}`}
+                        alt={`Bukti scan KTM ${selectedItem.nama}`}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        onError={(e) => {
+                          // Fallback ke avatar jika gambar gagal dimuat
+                          const parent = (e.target as HTMLImageElement).parentElement;
+                          if (parent) {
+                            (e.target as HTMLImageElement).style.display = "none";
+                            const fallback = parent.querySelector(".ktm-fallback") as HTMLElement;
+                            if (fallback) fallback.style.display = "flex";
+                          }
+                        }}
+                      />
+                    ) : null}
+
+                    {/* Fallback avatar — ditampilkan jika tidak ada gambar KTM */}
+                    <div
+                      className="ktm-fallback flex h-full flex-col items-center justify-end pt-12"
+                      style={{ display: selectedItem.ktm_image ? "none" : "flex" }}
+                    >
                       <div className="flex h-36 w-36 items-center justify-center rounded-full bg-[#F2B77E] text-5xl font-black text-[#A54418] shadow-inner">
                         {getInitials(selectedItem.nama)}
                       </div>
                       <div className="mt-[-8px] h-32 w-52 rounded-t-[80px] bg-sky-200" />
+                      {!selectedItem.ktm_image && (
+                        <p className="absolute bottom-3 left-0 right-0 text-center text-[9px] font-bold text-slate-400">Gambar KTM tidak tersedia</p>
+                      )}
                     </div>
                   </div>
 

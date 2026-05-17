@@ -21,6 +21,7 @@ export interface ScanResult {
     bbox: number[];
   }>;
   processing_time_ms: number;
+  ktm_image?: string | null;  // URL gambar KTM yang disimpan di backend
 }
 
 export interface FaceResponse {
@@ -192,12 +193,13 @@ export function enrollFace(
   imageBase64: string,
   token?: string | null,
   bookingIntent?: BookingIntentPayload,
+  ktmImage?: string | null,
 ): Promise<FaceResponse> {
   return fetchAPI<FaceResponse>("/api/face/enroll", {
     method: "POST",
     token,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nim, nama, image_base64: imageBase64, ...bookingIntent }),
+    body: JSON.stringify({ nim, nama, image_base64: imageBase64, ktm_image: ktmImage ?? null, ...bookingIntent }),
   });
 }
 
@@ -209,12 +211,13 @@ export function verifyFace(
   imageBase64: string,
   token?: string | null,
   bookingIntent?: BookingIntentPayload,
+  ktmImage?: string | null,
 ): Promise<FaceResponse> {
   return fetchAPI<FaceResponse>("/api/face/verify", {
     method: "POST",
     token,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nim, image_base64: imageBase64, ...bookingIntent }),
+    body: JSON.stringify({ nim, image_base64: imageBase64, ktm_image: ktmImage ?? null, ...bookingIntent }),
   });
 }
 
@@ -264,6 +267,7 @@ export interface Peminjaman {
   waktu_masuk: string;
   waktu_keluar: string | null;
   scan_confidence?: number | null;
+  ktm_image?: string | null;  // URL gambar KTM hasil scan
   catatan?: string | null;
   status: "aktif" | "selesai" | "menunggu" | "ditolak";
 }

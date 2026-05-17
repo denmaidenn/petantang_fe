@@ -621,14 +621,33 @@ export default function DashboardPage() {
             </button>
 
             <div className="bg-slate-950 px-8 py-10 text-white md:px-12">
-              <div className="relative mx-auto mb-9 flex aspect-square w-44 max-w-full flex-col items-center justify-end overflow-hidden rounded-[2rem] border border-white/10 bg-slate-100 shadow-[0_0_35px_rgba(228,0,130,0.28)]">
-                <div className="absolute right-3 top-3 rounded-lg bg-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-900 shadow-sm">
+              {/* KTM Scan Image — tampilkan foto asli jika tersedia, fallback ke avatar */}
+              <div className="relative mx-auto mb-9 flex aspect-square w-44 max-w-full flex-col items-center justify-end overflow-hidden rounded-[2rem] border border-white/10 bg-slate-800 shadow-[0_0_35px_rgba(228,0,130,0.28)]">
+                <div className="absolute right-3 top-3 z-10 rounded-lg bg-white px-3 py-1.5 text-[9px] font-black uppercase tracking-wide text-slate-900 shadow-sm">
                   Live Scan
                 </div>
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-orange-300 text-3xl font-black text-orange-900">
-                  {getInitials(verificationItem.nama)}
-                </div>
-                <div className="h-14 w-36 rounded-t-[80px] bg-sky-300" />
+
+                {verificationItem.ktm_image ? (
+                  /* Foto KTM asli hasil scan */
+                  <img
+                    src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${verificationItem.ktm_image}`}
+                    alt={`Bukti scan KTM ${verificationItem.nama}`}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={(e) => {
+                      // Fallback ke avatar jika gambar gagal dimuat
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                ) : (
+                  /* Fallback: avatar initials jika tidak ada gambar KTM */
+                  <>
+                    <div className="flex h-24 w-24 items-center justify-center rounded-full bg-orange-300 text-3xl font-black text-orange-900">
+                      {getInitials(verificationItem.nama)}
+                    </div>
+                    <div className="h-14 w-36 rounded-t-[80px] bg-sky-300" />
+                    <p className="absolute bottom-2 left-0 right-0 text-center text-[8px] font-bold text-slate-400 opacity-70">Gambar tidak tersedia</p>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.35em] text-blue-400">

@@ -38,6 +38,7 @@ interface ScanData {
   nama: string;
   db_nama: string;
   action_required: "face_enroll" | "face_verify" | "already_checked_in" | null;
+  ktmImageUrl?: string | null;  // URL gambar KTM yang disimpan backend
 }
 
 interface CheckinData {
@@ -237,6 +238,7 @@ const ScanLabPage = () => {
         nama: result.nama || result.db_nama || "",
         db_nama: result.db_nama || "",
         action_required: result.action_required,
+        ktmImageUrl: result.ktm_image ?? null,  // Simpan URL gambar KTM
       });
 
       // Move to step 2 (face verification)
@@ -278,14 +280,14 @@ const ScanLabPage = () => {
           booking_date: bookingIntent?.tanggal,
           slot_start: bookingIntent?.slotStart,
           slot_end: bookingIntent?.slotEnd,
-        });
+        }, scanData.ktmImageUrl);
       } else {
         response = await verifyFace(scanData.nim, base64, token, {
           lab: bookingIntent?.lab,
           booking_date: bookingIntent?.tanggal,
           slot_start: bookingIntent?.slotStart,
           slot_end: bookingIntent?.slotEnd,
-        });
+        }, scanData.ktmImageUrl);
       }
 
       setCheckinData({
